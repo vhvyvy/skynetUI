@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 
 CREATE TABLE IF NOT EXISTS transactions (
   id SERIAL PRIMARY KEY,
+  notion_id TEXT,
   date DATE,
   model TEXT,
   chatter TEXT,
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   month_source TEXT,
   synced_at TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_notion_id ON transactions(notion_id);
 
 CREATE TABLE IF NOT EXISTS shifts (
   id TEXT PRIMARY KEY,

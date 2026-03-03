@@ -3,6 +3,12 @@ on:
   schedule:
     - cron: '0 0,8,16 * * *'  # 00:00, 08:00, 16:00 UTC (3 раза в сутки)
   workflow_dispatch:
+    inputs:
+      truncate_transactions:
+        description: 'Очистить transactions перед sync (убрать дубликаты)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   sync:
@@ -13,7 +19,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - run: python scripts/sync_notion_full.py
+      - run: python scripts/sync_notion_full.py ${{ github.event.inputs.truncate_transactions == 'true' && '--truncate-transactions' || '' }}
         env:
           PG_HOST: ${{ secrets.PG_HOST }}
           PG_PORT: ${{ secrets.PG_PORT }}

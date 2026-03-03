@@ -254,7 +254,7 @@ def parse_transaction_row(row, shift_type="relation"):
     return date_val, model_name, chatter, amount, shift_val
 
 
-def _sync_one_transaction_db(db_id, shift_type, cur, conn):
+def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
     """Синхронизирует одну базу транзакций. Возвращает (inserted, skipped)."""
     url = f"https://api.notion.com/v1/databases/{db_id}/query"
     has_more, next_cursor, inserted, skipped = True, None, 0, 0
@@ -265,16 +265,27 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn):
         data = resp.json()
 
         for row in data.get("results", []):
+            notion_id = row.get("id")
             date_val, model, chatter, amount, shift_val = parse_transaction_row(row, shift_type)
             if not model:
                 skipped += 1
                 continue
             if shift_val and shift_type == "relation":
                 ensure_shift_exists(shift_val, cur, conn)
-            cur.execute(
-                """INSERT INTO transactions (date, model, chatter, amount, shift_id) VALUES (%s, %s, %s, %s, %s)""",
-                (date_val, model, chatter or "", amount, shift_val),
-            )
+
+            if use_upsert and notion_id:
+                cur.execute("""
+                    INSERT INTO transactions (notion_id, date, model, chatter, amount, shift_id, synced_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (notion_id)
+                    DO UPDATE SET date=EXCLUDED.date, model=EXCLUDED.model, chatter=EXCLUDED.chatter,
+                        amount=EXCLUDED.amount, shift_id=EXCLUDED.shift_id, synced_at=NOW()
+                """, (notion_id, date_val, model, chatter or "", amount, shift_val))
+            else:
+                cur.execute(
+                    """INSERT INTO transactions (date, model, chatter, amount, shift_id) VALUES (%s, %s, %s, %s, %s)""",
+                    (date_val, model, chatter or "", amount, shift_val),
+                )
             inserted += 1
             if inserted % 100 == 0:
                 print(f"  Transactions: {inserted}...")
@@ -285,7 +296,7 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn):
     return inserted, skipped
 
 
-def sync_transactions(config):
+def sync_transactions(config, truncate=False):
     tcfg = config.get("transactions", {})
     default_shift = tcfg.get("shift_type", "relation")
 
@@ -307,6 +318,12 @@ def sync_transactions(config):
 
     conn = get_connection()
     cur = conn.cursor()
+
+    if truncate:
+        print("TRUNCATE transactions (очистка дубликатов)...")
+        cur.execute("TRUNCATE TABLE transactions")
+        conn.commit()
+
     total_inserted, total_skipped = 0, 0
 
     for db_id, shift_type in sources:
@@ -329,6 +346,8 @@ def main():
     parser.add_argument("--expenses", action="store_true")
     parser.add_argument("--transactions", action="store_true")
     parser.add_argument("--month", help="Напр. 2024-12 для month_overrides")
+    parser.add_argument("--truncate-transactions", action="store_true",
+                        help="Очистить таблицу transactions перед sync (убирает дубликаты)")
     args = parser.parse_args()
 
     do_exp = args.expenses or (not args.expenses and not args.transactions)
@@ -344,7 +363,7 @@ def main():
     if do_exp:
         sync_expenses(config)
     if do_trx:
-        sync_transactions(config)
+        sync_transactions(config, truncate=args.truncate_transactions)
 
 
 if __name__ == "__main__":
