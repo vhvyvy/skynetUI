@@ -1,0 +1,19 @@
+{
+  "expenses": {
+    "database_ids": [
+      "2ddfad2b5c57802abf11d2a3a33b4b45",
+      "2d8fad2b5c5780df8109e0de46a7579f",
+      "2fbfad2b5c5780d2ab4bf2c77fab230f",
+      "317fad2b5c57804a84efce5a775c8224"
+    ]
+  },
+  "transactions": {
+    "database_id": "317fad2b5c5780888ae3d2f6dc078d4c",
+    "month_overrides": {
+      "2024-12": {
+        "database_id": "ID_БАЗЫ_ДЕКАБРЯ",
+        "shift_type": "select"
+      }
+    }
+  }
+}

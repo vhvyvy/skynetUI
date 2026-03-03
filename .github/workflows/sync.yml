@@ -1,0 +1,23 @@
+name: Sync Notion → DB
+on:
+  schedule:
+    - cron: '0 0,8,16 * * *'  # 00:00, 08:00, 16:00 UTC (3 раза в сутки)
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python scripts/sync_notion_full.py
+        env:
+          PG_HOST: ${{ secrets.PG_HOST }}
+          PG_PORT: ${{ secrets.PG_PORT }}
+          PG_DB: ${{ secrets.PG_DB }}
+          PG_USER: ${{ secrets.PG_USER }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}

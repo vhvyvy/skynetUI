@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# Secrets — никогда не коммитить
+.env
+*.env
+.streamlit/secrets.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data (если локальные копии)
+data/*.json
+!data/.gitkeep
+
+# Skynet — локальные скрипты (содержат секреты), логика в scripts/sync_notion_full.py
+skynet/
+
+# Локальный конфиг синка (секретные ID)
+config/notion_sync.json
+
+# Logs
+*.log
