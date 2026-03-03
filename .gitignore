@@ -26,8 +26,5 @@ data/*.json
 # Skynet — локальные скрипты (содержат секреты), логика в scripts/sync_notion_full.py
 skynet/
 
-# Локальный конфиг синка (секретные ID)
-config/notion_sync.json
-
 # Logs
 *.log

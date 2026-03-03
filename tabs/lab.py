@@ -62,7 +62,7 @@ def _render_tab_goals(cur_revenue, cur_expenses, cur_trx, cur_avg, model_pct, ch
     retention_add = (model_pct + chatter_pct) * (RETENTION_PCT / 100) if use_retention else 0
     agency_pct = agency_base_pct + retention_add
     default_target = float(round(metrics.get("net", 0) or cur_revenue * 0.25, 2))
-    target_net = st.number_input("Целевая чистая прибыль ($)", 0.0, 10_000_000.0, default_target, 1000.0, "%.2f", key="lab_target_net")
+    target_net = st.number_input("Целевая чистая прибыль ($)", -10_000_000.0, 10_000_000.0, default_target, 1000.0, "%.2f", key="lab_target_net")
 
     # net = agency - expenses = revenue * (agency_pct/100) - expenses
     # revenue = (target_net + expenses) / (agency_pct/100)

@@ -9,13 +9,17 @@ import psycopg2
 # =====================================================
 
 def get_connection():
-    return psycopg2.connect(
+    kwargs = dict(
         host=st.secrets["db_host"],
-        port=st.secrets["db_port"],
+        port=int(st.secrets.get("db_port", 5432)),
         database=st.secrets["db_name"],
         user=st.secrets["db_user"],
         password=st.secrets["db_password"],
     )
+    # Neon и другие облачные БД требуют SSL
+    if st.secrets.get("db_host", "").endswith(".neon.tech"):
+        kwargs["sslmode"] = "require"
+    return psycopg2.connect(**kwargs)
 
 
 # =====================================================

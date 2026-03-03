@@ -251,19 +251,10 @@ def parse_transaction_row(row, shift_type="relation"):
     return date_val, model_name, chatter, amount, shift_val
 
 
-def sync_transactions(config):
-    tcfg = config.get("transactions", {})
-    db_id = tcfg.get("database_id") or os.getenv("DATABASE_ID")
-    if not db_id:
-        print("Нет database_id для transactions")
-        return
-
-    shift_type = tcfg.get("shift_type", "relation")
-    conn = get_connection()
-    cur = conn.cursor()
-
+def _sync_one_transaction_db(db_id, shift_type, cur, conn):
+    """Синхронизирует одну базу транзакций. Возвращает (inserted, skipped)."""
     url = f"https://api.notion.com/v1/databases/{db_id}/query"
-    has_more, next_cursor, total, skipped = True, None, 0, 0
+    has_more, next_cursor, inserted, skipped = True, None, 0, 0
 
     while has_more:
         payload = {"start_cursor": next_cursor} if next_cursor else {}
@@ -281,16 +272,49 @@ def sync_transactions(config):
                 """INSERT INTO transactions (date, model, chatter, amount, shift_id) VALUES (%s, %s, %s, %s, %s)""",
                 (date_val, model, chatter or "", amount, shift_val),
             )
-            total += 1
-            if total % 100 == 0:
-                print(f"Transactions: {total}...")
+            inserted += 1
+            if inserted % 100 == 0:
+                print(f"  Transactions: {inserted}...")
         conn.commit()
         has_more = data.get("has_more", False)
         next_cursor = data.get("next_cursor")
 
+    return inserted, skipped
+
+
+def sync_transactions(config):
+    tcfg = config.get("transactions", {})
+    default_shift = tcfg.get("shift_type", "relation")
+
+    # Собираем все базы: основная + из month_overrides
+    sources = []
+    main_id = tcfg.get("database_id") or os.getenv("DATABASE_ID")
+    if main_id:
+        sources.append((main_id, default_shift))
+
+    for month_key, override in (tcfg.get("month_overrides") or {}).items():
+        oid = override.get("database_id")
+        oshift = override.get("shift_type", default_shift)
+        if oid and (oid, oshift) not in [(s[0], s[1]) for s in sources]:
+            sources.append((oid, oshift))
+
+    if not sources:
+        print("Нет database_id для transactions")
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    total_inserted, total_skipped = 0, 0
+
+    for db_id, shift_type in sources:
+        print(f"Transactions: база {db_id[:8]}... shift_type={shift_type}")
+        inc, sk = _sync_one_transaction_db(db_id, shift_type, cur, conn)
+        total_inserted += inc
+        total_skipped += sk
+
     cur.close()
     conn.close()
-    print("Transactions: inserted", total, "skipped", skipped)
+    print("Transactions: всего inserted", total_inserted, "skipped", total_skipped)
 
 
 def main():
