@@ -54,9 +54,12 @@ def load_config():
 
 
 def get_connection():
-    return psycopg2.connect(
+    kwargs = dict(
         host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER, password=PG_PASSWORD,
     )
+    if PG_HOST and ".neon.tech" in PG_HOST:
+        kwargs["sslmode"] = "require"
+    return psycopg2.connect(**kwargs)
 
 
 def fetch_notion_db(db_id):
