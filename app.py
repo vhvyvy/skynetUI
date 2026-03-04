@@ -153,7 +153,7 @@ with tabs_list[4]:
     kpi_chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[5]:
-    admin_kpi.render(transactions_df, metrics, selected_year, selected_month)
+    admin_kpi.render(transactions_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[6]:
     plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
