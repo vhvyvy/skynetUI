@@ -8,7 +8,6 @@ import psycopg2
 # Подключение
 # =====================================================
 
-@st.cache_resource
 def get_connection():
     kwargs = dict(
         host=st.secrets["db_host"],
