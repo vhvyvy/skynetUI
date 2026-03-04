@@ -28,8 +28,10 @@ import tabs.settings as settings
 from services.db import load_transactions, load_expenses, get_all_available_months
 from services.metrics import calculate_metrics
 from services.plans import get_plans, compute_plan_metrics
+from components.styling import inject_premium_css
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_icon="📊", initial_sidebar_state="expanded")
+inject_premium_css()
 
 # ==================================================
 # ДЕФОЛТНЫЕ ПРОЦЕНТЫ (инициализация)

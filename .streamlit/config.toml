@@ -1,7 +1,13 @@
 [server]
-# Ускоряет запуск
 headless = true
 
 [browser]
-# Минимизировать запросы на обновление
 gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#00d4aa"
+backgroundColor = "#0f172a"
+secondaryBackgroundColor = "#1e293b"
+textColor = "#f8fafc"
+font = "sans serif"
