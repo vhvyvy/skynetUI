@@ -22,6 +22,7 @@ env/
 # Data (если локальные копии)
 data/*.json
 !data/.gitkeep
+!data/chatter_id_to_name.json
 
 # Skynet — локальные скрипты (содержат секреты), логика в scripts/sync_notion_full.py
 skynet/
