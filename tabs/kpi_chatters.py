@@ -57,12 +57,7 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
     kpi["APV"] = kpi["chatter"].map(lambda c: _metrics_for_chatter(c).get("apv"))
     kpi["Total Chats"] = kpi["chatter"].map(lambda c: _metrics_for_chatter(c).get("total_chats"))
 
-    def _is_raw_id(name):
-        return str(name).strip().isdigit()
-
     for chatter_name, d in kpi_data.items():
-        if _is_raw_id(chatter_name):
-            continue
         if chatter_name not in kpi["chatter"].tolist():
             kpi = pd.concat([kpi, pd.DataFrame([{
                 "chatter": chatter_name, "Выручка": 0, "Транзакций": 0, "Средний чек": 0,
@@ -70,7 +65,7 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
                 "PPV Open Rate %": d.get("ppv_open_rate"), "APV": d.get("apv"), "Total Chats": d.get("total_chats"),
             }])], ignore_index=True)
 
-    kpi = kpi[~kpi["chatter"].astype(str).str.strip().str.match(r"^\d+$")].copy()
+    # Не скрываем строки с user_id — иначе после sync через API данные не видны
 
     kpi["PPV Sold"] = kpi.apply(lambda r: round(r["Выручка"] / r["APV"], 2) if pd.notna(r["APV"]) and r["APV"] > 0 else None, axis=1)
     kpi["APC per chat"] = kpi.apply(lambda r: round(r["PPV Sold"] / r["Total Chats"], 2) if pd.notna(r["Total Chats"]) and r["Total Chats"] > 0 and pd.notna(r["PPV Sold"]) else None, axis=1)
@@ -142,18 +137,23 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
     with col_load2:
         api_cfg = get_api_config()
         if api_cfg.get("url") and api_cfg.get("api_key"):
-            if st.button("Синхронизировать через API"):
+            if st.button("Синхронизировать через API", key="kpi_sync_api_btn"):
                 if selected_year and selected_month:
                     start = datetime(selected_year, selected_month, 1)
                     end = datetime(selected_year, selected_month, calendar.monthrange(selected_year, selected_month)[1], 23, 59, 59)
-                    try:
-                        result = fetch_chatter_metrics(start_date=start, end_date=end)
-                        if result:
-                            save_kpi_batch(selected_year, selected_month, result)
-                            st.success(f"Загружено {len(result)} записей.")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(str(e))
+                    with st.spinner("Запрос к API Onlymonster..."):
+                        try:
+                            result = fetch_chatter_metrics(start_date=start, end_date=end)
+                            if result is None:
+                                st.error("Нет подключения к API. Проверьте api_url и api_key в секретах.")
+                            elif len(result) == 0:
+                                st.warning("API вернул 0 записей. Нет данных за выбранный месяц или проверьте токен.")
+                            else:
+                                save_kpi_batch(selected_year, selected_month, result)
+                                st.success(f"Загружено {len(result)} записей.")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка: {e}")
 
     missing = kpi[kpi["PPV Open Rate %"].isna() & (kpi["Выручка"] > 0)]["chatter"].tolist()
     unmapped = get_unmapped_user_ids(selected_year or 2025, selected_month or 1) if selected_year and selected_month else []
