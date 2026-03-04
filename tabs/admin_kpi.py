@@ -33,7 +33,7 @@ def render(transactions_df, metrics, plan_metrics=None, selected_year=None, sele
 
     df["shift_display"] = df["shift"].map(lambda x: shift_names.get(str(x), x))
 
-    admin_pct = st.session_state.get("admin_percent", 9) / 100
+    admin_pct_total = st.session_state.get("admin_percent", 9) / 100  # общий % на всех админов
     total_revenue = df["amount"].sum()
 
     # Базовая агрегация по смене
@@ -48,8 +48,10 @@ def render(transactions_df, metrics, plan_metrics=None, selected_year=None, sele
         )
         .reset_index()
     )
+    n_admins = len(by_shift)  # по одной смене = один админ
+    admin_pct_each = admin_pct_total / max(n_admins, 1)  # каждый админ: 3% от тотала (при 9%/3)
     by_shift["Средний чек"] = (by_shift["Выручка"] / by_shift["Транзакций"]).round(2)
-    by_shift["Расчётная оплата"] = (by_shift["Выручка"] * admin_pct).round(2)
+    by_shift["Расчётная оплата"] = (total_revenue * admin_pct_each).round(2)  # каждый = % от тотала агентства
     by_shift["Доля %"] = (by_shift["Выручка"] / total_revenue * 100).round(1) if total_revenue > 0 else 0
     by_shift["Продуктивность $/день"] = by_shift.apply(
         lambda r: round(r["Выручка"] / r["Уникальных_дат"], 2) if r["Уникальных_дат"] > 0 else None, axis=1
@@ -116,7 +118,7 @@ def render(transactions_df, metrics, plan_metrics=None, selected_year=None, sele
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Смен с данными", len(by_shift))
     col2.metric("Общая выручка", f"${total_revenue:,.2f}")
-    col3.metric("Admin %", f"{admin_pct*100:.0f}%")
+    col3.metric("Admin %", f"{admin_pct_total*100:.0f}% всего, {admin_pct_each*100:.1f}% каждый")
     col4.metric("Итого админам", f"${by_shift['Расчётная оплата'].sum():,.2f}")
 
     st.divider()
