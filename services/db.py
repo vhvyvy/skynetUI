@@ -159,6 +159,21 @@ def load_expenses(start_date, end_date):
 # Доступные месяцы (из транзакций и расходов)
 # =====================================================
 
+@st.cache_data(ttl=300)
+def load_shifts():
+    """Возвращает dict {shift_id: shift_name} из таблицы shifts."""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM shifts")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {str(r[0]): (r[1] or str(r[0])) for r in rows}
+    except Exception:
+        return {}
+
+
 @st.cache_data(ttl=3600)
 def get_all_available_months():
     """Returns list of (year, month) tuples for months that have data in transactions or expenses."""

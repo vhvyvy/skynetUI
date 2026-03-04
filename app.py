@@ -18,6 +18,8 @@ import tabs.kpi_chatters as kpi_chatters
 import tabs.plans as plans
 import tabs.lab as lab
 import tabs.structure as structure
+import tabs.admin_kpi as admin_kpi
+import tabs.models_detail as models_detail
 import tabs.ai as ai
 import tabs.events as events_tab
 import tabs.settings as settings
@@ -133,7 +135,7 @@ metrics = calculate_metrics(
 # ТАБЫ
 # ==================================================
 
-tabs_list = st.tabs(["Обзор", "Финансы", "Чаттеры", "KPI", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
+tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
 
 with tabs_list[0]:
     overview.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
@@ -142,25 +144,31 @@ with tabs_list[1]:
     finance.render(transactions_df, expenses_df, metrics)
 
 with tabs_list[2]:
-    chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
+    models_detail.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[3]:
-    kpi_chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
+    chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[4]:
-    plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
+    kpi_chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[5]:
-    lab.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
+    admin_kpi.render(transactions_df, metrics, selected_year, selected_month)
 
 with tabs_list[6]:
-    structure.render(transactions_df, expenses_df, metrics, plan_metrics)
+    plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
 
 with tabs_list[7]:
-    events_tab.render(transactions_df, expenses_df, metrics)
+    lab.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
 
 with tabs_list[8]:
-    ai.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month, month_options)
+    structure.render(transactions_df, expenses_df, metrics, plan_metrics)
 
 with tabs_list[9]:
+    events_tab.render(transactions_df, expenses_df, metrics)
+
+with tabs_list[10]:
+    ai.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month, month_options)
+
+with tabs_list[11]:
     settings.render(transactions_df, expenses_df, metrics)
