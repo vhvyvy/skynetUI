@@ -80,6 +80,10 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
     kpi["Productivity Index"] = kpi.apply(lambda r: round((r["PPV Sold"] or 0) / (r["Total Chats"] or 1) * (r["PPV Open Rate %"] or 0), 2) if pd.notna(r["Total Chats"]) and r["Total Chats"] > 0 else None, axis=1)
     kpi["Efficiency Ratio"] = kpi.apply(lambda r: round((r["RPC"] or 0) / (r["APV"] or 1) * (r["PPV Open Rate %"] or 0), 2) if pd.notna(r["RPC"]) and pd.notna(r["APV"]) and pd.notna(r["PPV Open Rate %"]) and r["APV"] > 0 else None, axis=1)
 
+    # Скрыть ID без маппинга и строки с нулевой расчётной оплатой
+    HIDDEN_IDS = {"9680", "18073", "71191", "73588", "79737", "80144", "@hornykabanchik"}
+    kpi = kpi[~kpi["chatter"].astype(str).str.strip().isin(HIDDEN_IDS)]
+    kpi = kpi[(kpi["Расчётная оплата"].fillna(0) > 0)]
     return kpi
 
 
