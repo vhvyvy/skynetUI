@@ -173,6 +173,22 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
     main_cols = ["chatter", "Выручка", "Транзакций (выходы)", "Средний чек (средний выход)", "Доля выручки %", "PPV Open Rate %", "APV", "Total Chats", "PPV Sold", "APC per chat", "RPC", "Volume rating", "Расчётная оплата"]
     main_cols = [c for c in main_cols if c in kpi_renamed.columns]
     main_df = kpi_renamed[main_cols].rename(columns={"chatter": "Чаттер"})
+
+    # Убираем пустые колонки (все 0 или NaN)
+    def _drop_empty_cols(df, keep_cols=None):
+        keep_cols = keep_cols or ["Чаттер"]
+        drop = []
+        for c in df.columns:
+            if c in keep_cols:
+                continue
+            s = df[c]
+            if s.isna().all():
+                drop.append(c)
+            elif pd.api.types.is_numeric_dtype(s):
+                if (s.fillna(0) == 0).all():
+                    drop.append(c)
+        return df.drop(columns=[x for x in drop if x in df.columns])
+    main_df = _drop_empty_cols(main_df)
     fmt = {
         "Выручка": "${:,.2f}", "Средний чек (средний выход)": "${:,.2f}", "Расчётная оплата": "${:,.2f}",
         "APV": lambda x: f"${x:,.2f}" if pd.notna(x) else "—", "RPC": lambda x: f"${x:,.2f}" if pd.notna(x) else "—",
@@ -186,19 +202,21 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
     st.divider()
 
     # ========== Дополнительные KPI ==========
-    st.subheader("Дополнительные метрики")
-    st.caption("Conversion Score, Monetization Depth, Productivity Index, Efficiency Ratio — как читать: см. памятку выше.")
     extra_cols = ["chatter", "Conversion Score", "Monetization Depth", "Productivity Index", "Efficiency Ratio", "Выручка", "RPC"]
     extra_cols = [c for c in extra_cols if c in kpi.columns]
     extra_df = kpi[extra_cols].rename(columns={"chatter": "Чаттер"})
-    st.dataframe(
-        extra_df.style.format({
-            "Выручка": "${:,.2f}", "RPC": lambda x: f"${x:,.2f}" if pd.notna(x) else "—",
-            "Conversion Score": "{:.2f}", "Monetization Depth": "{:.2f}", "Productivity Index": "{:.2f}", "Efficiency Ratio": "{:.2f}",
-        }, na_rep="—"),
-        use_container_width=True,
-        hide_index=True,
-    )
+    extra_df = _drop_empty_cols(extra_df)
+    if len(extra_df.columns) > 1:
+        st.subheader("Дополнительные метрики")
+        st.caption("Conversion Score, Monetization Depth, Productivity Index, Efficiency Ratio — как читать: см. памятку выше.")
+        st.dataframe(
+            extra_df.style.format({
+                "Выручка": "${:,.2f}", "RPC": lambda x: f"${x:,.2f}" if pd.notna(x) else "—",
+                "Conversion Score": "{:.2f}", "Monetization Depth": "{:.2f}", "Productivity Index": "{:.2f}", "Efficiency Ratio": "{:.2f}",
+            }, na_rep="—"),
+            use_container_width=True,
+            hide_index=True,
+        )
 
     # Топы
     st.divider()
