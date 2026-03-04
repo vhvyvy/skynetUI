@@ -8,6 +8,7 @@ import psycopg2
 # Подключение
 # =====================================================
 
+@st.cache_resource
 def get_connection():
     kwargs = dict(
         host=st.secrets["db_host"],
@@ -26,6 +27,7 @@ def get_connection():
 # Транзакции
 # =====================================================
 
+@st.cache_data(ttl=300)
 def load_transactions(start_date, end_date):
     conn = get_connection()
 
@@ -73,6 +75,7 @@ def load_transactions(start_date, end_date):
 # Расходы
 # =====================================================
 
+@st.cache_data(ttl=300)
 def load_expenses(start_date, end_date):
     conn = get_connection()
 
@@ -157,6 +160,7 @@ def load_expenses(start_date, end_date):
 # Доступные месяцы (из транзакций и расходов)
 # =====================================================
 
+@st.cache_data(ttl=3600)
 def get_all_available_months():
     """Returns list of (year, month) tuples for months that have data in transactions or expenses."""
     conn = get_connection()

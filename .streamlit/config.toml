@@ -1,0 +1,7 @@
+[server]
+# Ускоряет запуск
+headless = true
+
+[browser]
+# Минимизировать запросы на обновление
+gatherUsageStats = false
