@@ -17,7 +17,7 @@ def get_connection():
         password=st.secrets["db_password"],
     )
     # Neon и другие облачные БД требуют SSL
-    if st.secrets.get("db_host", "").endswith(".neon.tech"):
+    if ".neon.tech" in (st.secrets.get("db_host") or ""):
         kwargs["sslmode"] = "require"
     return psycopg2.connect(**kwargs)
 

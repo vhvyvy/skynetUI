@@ -2,10 +2,9 @@
 Планы по моделям. % чаттера зависит от выполнения плана:
 50% → 20%, 60% → 21%, 70% → 22%, 80% → 23%, 90% → 24%, 100%+ → 25%
 """
-import json
-import os
+import streamlit as st
 
-PLANS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "plans.json")
+from services.db import get_connection
 
 # (min_completion_pct, chatter_pct)
 PLAN_TIERS = [
@@ -19,48 +18,38 @@ PLAN_TIERS = [
 DEFAULT_CHATTER_PCT = 20  # при <50% плана
 
 
-def _ensure_data_dir():
-    d = os.path.dirname(PLANS_FILE)
-    if not os.path.exists(d):
-        os.makedirs(d)
-
-
-def _load_all():
-    if not os.path.exists(PLANS_FILE):
-        return {}
-    try:
-        with open(PLANS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return {}
-
-
-def _save_all(data):
-    _ensure_data_dir()
-    with open(PLANS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
 def get_plans(year, month):
     """Возвращает dict {model: plan_amount} для месяца."""
-    data = _load_all()
-    y = str(year)
-    m = str(month)
-    if y not in data or m not in data[y]:
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT model, plan_amount FROM plans WHERE year = %s AND month = %s",
+            (year, month),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {r[0]: float(r[1]) for r in rows}
+    except Exception:
         return {}
-    return data[y][m]
 
 
 def save_plan(year, month, model, plan_amount):
     """Сохраняет план для модели."""
-    data = _load_all()
-    y, m = str(year), str(month)
-    if y not in data:
-        data[y] = {}
-    if m not in data[y]:
-        data[y][m] = {}
-    data[y][m][model] = float(plan_amount)
-    _save_all(data)
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO plans (year, month, model, plan_amount)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (year, month, model) DO UPDATE SET plan_amount = EXCLUDED.plan_amount
+        """,
+        (year, month, model.strip(), float(plan_amount)),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def completion_to_chatter_pct(completion_pct):

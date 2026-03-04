@@ -1,20 +1,19 @@
 """
 KPI чаттеров: PPV Open Rate, APV, Total Chats.
 Источники: Onlymonster API, Notion, ручной ввод.
-Структура: {year: {month: {chatter: {ppv_open_rate, apv, total_chats, model?, source}}}}
 """
 import json
 import os
 
-KPI_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chatter_kpi.json")
+from services.db import get_connection
+
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chatter_id_to_name.json")
 
 
 def get_chatter_id_to_name_mapping():
     """
     Маппинг user_id (Onlymonster) → имя или [имена].
-    Файл data/chatter_id_to_name.json.
-    Формат: "159159": "@nick" или "159159": ["@nick", "OnlyMonster name"]
+    Файл data/chatter_id_to_name.json (в git).
     """
     if not os.path.exists(MAPPING_FILE):
         return {}
@@ -26,7 +25,7 @@ def get_chatter_id_to_name_mapping():
 
 
 def get_name_to_chatter_id_reverse_mapping():
-    """Обратный маппинг: любой алиас → user_id. Для merge с транзакциями."""
+    """Обратный маппинг: любой алиас → user_id."""
     mapping = get_chatter_id_to_name_mapping()
     reverse = {}
     for uid, names in mapping.items():
@@ -37,39 +36,38 @@ def get_name_to_chatter_id_reverse_mapping():
     return reverse
 
 
-def _ensure_data_dir():
-    d = os.path.dirname(KPI_FILE)
-    if not os.path.exists(d):
-        os.makedirs(d)
-
-
-def _load_all():
-    if not os.path.exists(KPI_FILE):
-        return {}
+def _load_kpi_from_db(year, month):
+    """Загружает KPI из БД. Возвращает dict {chatter: {ppv_open_rate, apv, total_chats, model, source}}."""
     try:
-        with open(KPI_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT chatter, ppv_open_rate, apv, total_chats, model, source FROM chatter_kpi WHERE year = %s AND month = %s",
+            (year, month),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        result = {}
+        for r in rows:
+            chatter, ppv, apv, chats, model, src = r
+            result[str(chatter)] = {
+                "ppv_open_rate": float(ppv) if ppv is not None else None,
+                "apv": float(apv) if apv is not None else None,
+                "total_chats": int(chats) if chats is not None else None,
+                "model": model,
+                "source": src or "manual",
+            }
+        return result
+    except Exception:
         return {}
-
-
-def _save_all(data):
-    _ensure_data_dir()
-    with open(KPI_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def get_kpi(year, month, apply_id_mapping=True):
     """
     Возвращает dict {chatter: {ppv_open_rate, apv, total_chats, model?, source}}.
-    Если apply_id_mapping=True, маппит user_id → имя по data/chatter_id_to_name.json.
-    При формате "id": ["name1", "name2"] используется первый как display.
     """
-    data = _load_all()
-    y, m = str(year), str(month)
-    if y not in data or m not in data[y]:
-        return {}
-    kpi = data[y][m]
+    kpi = _load_kpi_from_db(year, month)
     if not apply_id_mapping:
         return kpi
     mapping = get_chatter_id_to_name_mapping()
@@ -93,14 +91,8 @@ def get_unmapped_user_ids(year, month):
 def get_kpi_for_merge(year, month):
     """
     Возвращает (kpi_by_id, name_to_id).
-    kpi_by_id: {user_id: {ppv_open_rate, apv, ...}}
-    name_to_id: {имя_или_алиас: user_id} для сопоставления с chatter из транзакций.
     """
-    data = _load_all()
-    y, m = str(year), str(month)
-    if y not in data or m not in data[y]:
-        return {}, {}
-    kpi = data[y][m]
+    kpi = _load_kpi_from_db(year, month)
     mapping = get_chatter_id_to_name_mapping()
     name_to_id = {}
     for uid, names in mapping.items():
@@ -112,48 +104,52 @@ def get_kpi_for_merge(year, month):
 
 def save_kpi(year, month, chatter, ppv_open_rate=None, apv=None, total_chats=None, model=None, source="manual"):
     """Сохраняет KPI для чаттера."""
-    data = _load_all()
-    y, m = str(year), str(month)
-    if y not in data:
-        data[y] = {}
-    if m not in data[y]:
-        data[y][m] = {}
-    entry = data[y][m].get(chatter, {})
-    if ppv_open_rate is not None:
-        entry["ppv_open_rate"] = float(ppv_open_rate)
-    if apv is not None:
-        entry["apv"] = float(apv)
-    if total_chats is not None:
-        entry["total_chats"] = int(total_chats)
-    if model is not None:
-        entry["model"] = str(model)
-    entry["source"] = source
-    data[y][m][chatter] = entry
-    _save_all(data)
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO chatter_kpi (year, month, chatter, ppv_open_rate, apv, total_chats, model, source)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (year, month, chatter) DO UPDATE SET
+            ppv_open_rate = COALESCE(EXCLUDED.ppv_open_rate, chatter_kpi.ppv_open_rate),
+            apv = COALESCE(EXCLUDED.apv, chatter_kpi.apv),
+            total_chats = COALESCE(EXCLUDED.total_chats, chatter_kpi.total_chats),
+            model = COALESCE(EXCLUDED.model, chatter_kpi.model),
+            source = COALESCE(EXCLUDED.source, chatter_kpi.source)
+        """,
+        (year, month, str(chatter).strip(), ppv_open_rate, apv, total_chats, model, source),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def save_kpi_batch(year, month, records):
-    """
-    records: list of {chatter, ppv_open_rate, apv, total_chats, model?, source?}
-    """
-    data = _load_all()
-    y, m = str(year), str(month)
-    if y not in data:
-        data[y] = {}
-    if m not in data[y]:
-        data[y][m] = {}
+    """Сохраняет batch KPI из API/CSV."""
+    conn = get_connection()
+    cur = conn.cursor()
     for r in records:
         chatter = r.get("chatter") or r.get("member") or r.get("member_name")
         if not chatter:
             continue
-        entry = {
-            "ppv_open_rate": r.get("ppv_open_rate"),
-            "apv": r.get("apv"),
-            "total_chats": r.get("total_chats"),
-            "model": r.get("model") or r.get("creator"),
-            "source": r.get("source", "api"),
-        }
-        entry = {k: v for k, v in entry.items() if v is not None}
-        if entry:
-            data[y][m][str(chatter).strip()] = {**data[y][m].get(str(chatter).strip(), {}), **entry}
-    _save_all(data)
+        ppv = r.get("ppv_open_rate")
+        apv = r.get("apv")
+        chats = r.get("total_chats")
+        model = r.get("model") or r.get("creator")
+        src = r.get("source", "api")
+        cur.execute(
+            """
+            INSERT INTO chatter_kpi (year, month, chatter, ppv_open_rate, apv, total_chats, model, source)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (year, month, chatter) DO UPDATE SET
+                ppv_open_rate = COALESCE(EXCLUDED.ppv_open_rate, chatter_kpi.ppv_open_rate),
+                apv = COALESCE(EXCLUDED.apv, chatter_kpi.apv),
+                total_chats = COALESCE(EXCLUDED.total_chats, chatter_kpi.total_chats),
+                model = COALESCE(EXCLUDED.model, chatter_kpi.model),
+                source = EXCLUDED.source
+            """,
+            (year, month, str(chatter).strip(), ppv, apv, chats, model, src),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()

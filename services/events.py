@@ -2,56 +2,47 @@
 События агентства — для контекста AI.
 Примеры: новая модель, ушёл чаттер, сменились админы.
 """
-import json
-import os
-
-EVENTS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "events.json")
-
-
-def _ensure_data_dir():
-    d = os.path.dirname(EVENTS_FILE)
-    if not os.path.exists(d):
-        os.makedirs(d)
-
-
-def _load_all():
-    if not os.path.exists(EVENTS_FILE):
-        return []
-    try:
-        with open(EVENTS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, IOError):
-        return []
-
-
-def _save_all(events: list):
-    _ensure_data_dir()
-    with open(EVENTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(events, f, ensure_ascii=False, indent=2)
+from services.db import get_connection
 
 
 def get_all_events() -> list:
     """Возвращает список событий [{date, description}, ...], отсортированный по дате (новые первые)."""
-    events = _load_all()
-    events = [e for e in events if isinstance(e, dict) and e.get("date") and e.get("description")]
-    events.sort(key=lambda e: e["date"], reverse=True)
-    return events
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT date, description FROM events ORDER BY date DESC")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"date": str(r[0]), "description": r[1] or ""} for r in rows]
+    except Exception:
+        return []
 
 
 def add_event(date: str, description: str) -> None:
     """Добавляет событие. date в формате YYYY-MM-DD."""
-    events = _load_all()
-    events.append({"date": date.strip(), "description": description.strip()})
-    events.sort(key=lambda e: e["date"], reverse=True)
-    _save_all(events)
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO events (date, description) VALUES (%s, %s)",
+        (date.strip(), description.strip()),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def delete_event(date: str, description: str) -> None:
     """Удаляет первое совпавшее событие по date и description."""
-    events = _load_all()
-    events = [e for e in events if not (e.get("date") == date and e.get("description") == description)]
-    _save_all(events)
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM events WHERE id = (SELECT id FROM events WHERE date = %s AND description = %s LIMIT 1)",
+        (date, description),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def get_events_for_context(selected_year: int = None, selected_month: int = None) -> list:
