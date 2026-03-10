@@ -1,0 +1,32 @@
+# Синхронизация для клиента — НЕ трогает личный проект
+# Использует отдельные секреты: PG_HOST_CLIENT, NOTION_TOKEN_CLIENT и т.д.
+# Твой личный sync.yml продолжает работать со своими секретами
+name: Sync Client (Notion → Client DB)
+on:
+  schedule:
+    - cron: '0 1,9,17 * * *'  # 01:00, 09:00, 17:00 UTC (смещено от личного)
+  workflow_dispatch:
+    inputs:
+      truncate_transactions:
+        description: 'Очистить transactions перед sync'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python scripts/sync_notion_full.py ${{ github.event.inputs.truncate_transactions == 'true' && '--truncate-transactions' || '' }}
+        env:
+          PG_HOST: ${{ secrets.PG_HOST_CLIENT }}
+          PG_PORT: ${{ secrets.PG_PORT_CLIENT }}
+          PG_DB: ${{ secrets.PG_DB_CLIENT }}
+          PG_USER: ${{ secrets.PG_USER_CLIENT }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD_CLIENT }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN_CLIENT }}
