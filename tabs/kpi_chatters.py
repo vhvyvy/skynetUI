@@ -89,16 +89,8 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
 
 
 def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_year=None, selected_month=None):
-    tit_col, lottie_col = st.columns([6, 1])
-    with tit_col:
-        st.title("📊 KPI чаттеров")
-        st.caption("Метрики Onlymonster, формулы и памятка по чтению данных")
-    with lottie_col:
-        try:
-            from components.ui_enhanced import st_lottie_safe, LOTTIE_CHART
-            st_lottie_safe(LOTTIE_CHART, height=80, key="kpi_header_lottie")
-        except ImportError:
-            pass
+    st.title("📊 KPI чаттеров")
+    st.caption("Метрики Onlymonster, формулы и памятка по чтению данных")
 
     kpi = _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selected_month)
     if kpi is None or kpi.empty:

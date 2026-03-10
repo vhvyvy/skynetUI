@@ -1,4 +1,7 @@
+import os
 import streamlit as st
+
+IS_CLIENT = bool(os.getenv("CLIENT_MODE") or os.getenv("SKYNET_CLIENT"))
 
 
 def render(transactions_df, expenses_df, metrics):
@@ -38,11 +41,12 @@ def render(transactions_df, expenses_df, metrics):
         value=st.session_state.use_withdraw
     )
 
-    st.session_state.use_retention = st.toggle(
-        "Удержание 2.5% с моделей и чаттеров (с января)",
-        value=st.session_state.get("use_retention", True),
-        help="2.5% от долей моделей и чаттеров забирает агентство. Включите/выключите, чтобы увидеть влияние на прибыль."
-    )
+    if not IS_CLIENT:
+        st.session_state.use_retention = st.toggle(
+            "Удержание 2.5% с моделей и чаттеров (с января)",
+            value=st.session_state.get("use_retention", True),
+            help="2.5% от долей моделей и чаттеров забирает агентство. Включите/выключите, чтобы увидеть влияние на прибыль."
+        )
 
     st.divider()
 
@@ -60,7 +64,7 @@ def render(transactions_df, expenses_df, metrics):
     st.write(f"Админы: {st.session_state.admin_percent}%")
     st.write(f"Вывод: {st.session_state.withdraw_percent}%")
     st.write(f"Суммарно удержаний: {total_percent}%")
-    if st.session_state.get("use_retention", True):
+    if not IS_CLIENT and st.session_state.get("use_retention", True):
         st.write("**Retention 2.5%** (с model+chatter): включён")
 
     if total_percent > 100:

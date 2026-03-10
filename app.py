@@ -22,7 +22,6 @@ import tabs.admin_kpi as admin_kpi
 import tabs.models_detail as models_detail
 import tabs.ai as ai
 import tabs.events as events_tab
-import tabs.subs as subs_tab
 import tabs.settings as settings
 
 # --- СЕРВИСЫ ---
@@ -91,11 +90,15 @@ selected_label = st.sidebar.selectbox("Выберите месяц", labels)
 
 st.sidebar.divider()
 st.sidebar.caption("Экономическая модель")
-st.session_state.use_retention = st.sidebar.toggle(
-    "Retention 2.5% (с model+chatter)",
-    value=st.session_state.get("use_retention", True),
-    help="Включить/выключить, чтобы увидеть влияние на прибыль"
-)
+_is_client = bool(_os.getenv("CLIENT_MODE") or _os.getenv("SKYNET_CLIENT"))
+if _is_client:
+    st.session_state.use_retention = False  # Клиентская версия — без retention
+else:
+    st.session_state.use_retention = st.sidebar.toggle(
+        "Retention 2.5% (с model+chatter)",
+        value=st.session_state.get("use_retention", True),
+        help="Включить/выключить, чтобы увидеть влияние на прибыль"
+    )
 st.session_state.use_plans = st.sidebar.toggle(
     "Планы по моделям (гибкий % чаттера)",
     value=st.session_state.get("use_plans", True),
@@ -147,7 +150,7 @@ metrics = calculate_metrics(
 # ТАБЫ
 # ==================================================
 
-tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Сабы", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
+tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
 
 with tabs_list[0]:
     overview.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
@@ -165,25 +168,22 @@ with tabs_list[4]:
     kpi_chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[5]:
-    subs_tab.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
-
-with tabs_list[6]:
     admin_kpi.render(transactions_df, metrics, plan_metrics, selected_year, selected_month)
 
-with tabs_list[7]:
+with tabs_list[6]:
     plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
 
-with tabs_list[8]:
+with tabs_list[7]:
     lab.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
 
-with tabs_list[9]:
+with tabs_list[8]:
     structure.render(transactions_df, expenses_df, metrics, plan_metrics)
 
-with tabs_list[10]:
+with tabs_list[9]:
     events_tab.render(transactions_df, expenses_df, metrics)
 
-with tabs_list[11]:
+with tabs_list[10]:
     ai.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month, month_options)
 
-with tabs_list[12]:
+with tabs_list[11]:
     settings.render(transactions_df, expenses_df, metrics)
