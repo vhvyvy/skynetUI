@@ -1,7 +1,13 @@
 import os
 import streamlit as st
 
-IS_CLIENT = bool(os.getenv("CLIENT_MODE") or os.getenv("SKYNET_CLIENT"))
+
+def _is_client():
+    v = (os.getenv("CLIENT_MODE") or os.getenv("SKYNET_CLIENT") or "").lower().strip()
+    return v in ("1", "true", "yes", "on")
+
+
+IS_CLIENT = _is_client()
 
 
 def render(transactions_df, expenses_df, metrics):

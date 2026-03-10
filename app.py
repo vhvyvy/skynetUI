@@ -90,7 +90,14 @@ selected_label = st.sidebar.selectbox("Выберите месяц", labels)
 
 st.sidebar.divider()
 st.sidebar.caption("Экономическая модель")
-_is_client = bool(_os.getenv("CLIENT_MODE") or _os.getenv("SKYNET_CLIENT"))
+
+
+def _is_client_mode():
+    v = (_os.getenv("CLIENT_MODE") or _os.getenv("SKYNET_CLIENT") or "").lower().strip()
+    return v in ("1", "true", "yes", "on")
+
+
+_is_client = _is_client_mode()
 if _is_client:
     st.session_state.use_retention = False  # Клиентская версия — без retention
 else:
