@@ -7,5 +7,5 @@ python-dotenv>=1.0.0
 openpyxl>=3.1.0
 requests>=2.28.0
 streamlit-extras>=0.5.0
-streamlit-lottie>=0.0.6
+streamlit-lottie>=0.0.5
 streamlit-aggrid>=0.3.4
