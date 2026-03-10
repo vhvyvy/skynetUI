@@ -1,7 +1,28 @@
 import calendar
+import os
 import streamlit as st
 import pandas as pd
 import psycopg2
+
+
+def _get_db_config():
+    """Читает конфиг БД из st.secrets или env (для Railway и др.)."""
+    try:
+        return {
+            "host": st.secrets.get("db_host") or os.getenv("PG_HOST") or os.getenv("PGHOST") or os.getenv("DB_HOST") or "localhost",
+            "port": int(st.secrets.get("db_port") or os.getenv("PG_PORT") or os.getenv("DB_PORT") or 5432),
+            "database": st.secrets.get("db_name") or os.getenv("PG_DB") or os.getenv("PGDATABASE") or os.getenv("DB_NAME") or "skynet",
+            "user": st.secrets.get("db_user") or os.getenv("PG_USER") or os.getenv("DB_USER") or "postgres",
+            "password": st.secrets.get("db_password") or os.getenv("PG_PASSWORD") or os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or "",
+        }
+    except Exception:
+        return {
+            "host": os.getenv("PG_HOST") or os.getenv("PGHOST") or os.getenv("DB_HOST") or "localhost",
+            "port": int(os.getenv("PG_PORT") or os.getenv("DB_PORT") or 5432),
+            "database": os.getenv("PG_DB") or os.getenv("PGDATABASE") or os.getenv("DB_NAME") or "skynet",
+            "user": os.getenv("PG_USER") or os.getenv("DB_USER") or "postgres",
+            "password": os.getenv("PG_PASSWORD") or os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or "",
+        }
 
 
 # =====================================================
@@ -9,15 +30,16 @@ import psycopg2
 # =====================================================
 
 def get_connection():
+    cfg = _get_db_config()
     kwargs = dict(
-        host=st.secrets["db_host"],
-        port=int(st.secrets.get("db_port", 5432)),
-        database=st.secrets["db_name"],
-        user=st.secrets["db_user"],
-        password=st.secrets["db_password"],
+        host=cfg["host"],
+        port=cfg["port"],
+        database=cfg["database"],
+        user=cfg["user"],
+        password=cfg["password"],
     )
     # Neon и другие облачные БД требуют SSL
-    if ".neon.tech" in (st.secrets.get("db_host") or ""):
+    if ".neon.tech" in (cfg["host"] or ""):
         kwargs["sslmode"] = "require"
     return psycopg2.connect(**kwargs)
 
