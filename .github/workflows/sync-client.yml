@@ -21,6 +21,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Init DB schema (if not exists)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+          psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -f scripts/init_db.sql
+        env:
+          PGHOST: ${{ secrets.PG_HOST_CLIENT }}
+          PGPORT: ${{ secrets.PG_PORT_CLIENT }}
+          PGDATABASE: ${{ secrets.PG_DB_CLIENT }}
+          PGUSER: ${{ secrets.PG_USER_CLIENT }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD_CLIENT }}
+          PGSSLMODE: require
+        continue-on-error: true
       - run: pip install -r requirements.txt
       - run: python scripts/sync_notion_full.py ${{ github.event.inputs.truncate_transactions == 'true' && '--truncate-transactions' || '' }}
         env:
