@@ -57,7 +57,7 @@ def get_connection():
     kwargs = dict(
         host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER, password=PG_PASSWORD,
     )
-    if PG_HOST and ".neon.tech" in PG_HOST:
+    if PG_HOST and (".neon.tech" in PG_HOST or "proxy.rlwy.net" in PG_HOST):
         kwargs["sslmode"] = "require"
     return psycopg2.connect(**kwargs)
 
