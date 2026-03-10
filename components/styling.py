@@ -1,5 +1,5 @@
 """
-Премиум-стили: анимации, градиенты, glassmorphism.
+Премиум-стили: анимации, градиенты, glassmorphism, grain, gradient borders.
 """
 import streamlit as st
 
@@ -8,7 +8,7 @@ def inject_premium_css():
     """Инжектирует кастомный CSS для премиального вида."""
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
     /* Базовые переменные */
     :root {
@@ -19,12 +19,26 @@ def inject_premium_css():
         --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         --radius: 12px;
         --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --font-body: 'Sora', sans-serif;
+        --font-heading: 'Space Grotesk', sans-serif;
     }
 
-    /* Основной контейнер — тёмный градиент */
+    /* Основной контейнер — тёмный градиент + grain */
     [data-testid="stAppViewContainer"] {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
         background-attachment: fixed;
+        position: relative;
+    }
+    [data-testid="stAppViewContainer"]::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
     [data-testid="stHeader"] {
@@ -66,7 +80,7 @@ def inject_premium_css():
 
     /* Заголовки */
     h1, h2, h3 {
-        font-family: 'Inter', sans-serif !important;
+        font-family: var(--font-heading) !important;
         font-weight: 600 !important;
         color: #f8fafc !important;
         letter-spacing: -0.02em;
@@ -147,6 +161,39 @@ def inject_premium_css():
         border: 1px solid var(--glass-border);
     }
 
+    /* Gradient borders для карточек */
+    .gradient-border {
+        position: relative;
+        border-radius: var(--radius);
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+    }
+    .gradient-border::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(135deg, var(--accent), transparent 50%, rgba(0,212,170,0.3));
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+    }
+
+    /* Skeleton loader */
+    .skeleton {
+        background: linear-gradient(90deg, rgba(30,41,59,0.8) 25%, rgba(51,65,85,0.5) 50%, rgba(30,41,59,0.8) 75%);
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s ease-in-out infinite;
+        border-radius: 8px;
+    }
+    @keyframes skeleton-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
     /* Caption, info */
     .stCaption, [data-testid="stCaptionContainer"] {
         color: #94a3b8 !important;
@@ -178,5 +225,16 @@ def inject_premium_css():
         border-radius: 8px;
         border: 1px solid var(--glass-border);
     }
+
+    /* Bento grid */
+    .bento-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    .bento-cell { grid-column: span 1; }
+    .bento-cell--wide { grid-column: span 2; }
+    .bento-cell--tall { grid-row: span 2; }
     </style>
     """, unsafe_allow_html=True)

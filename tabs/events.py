@@ -27,7 +27,7 @@ def render(transactions_df, expenses_df, metrics):
             )
         if st.button("Добавить", key="ev_add") and ev_desc.strip():
             add_event(ev_date.strftime("%Y-%m-%d"), ev_desc.strip())
-            st.success("Событие добавлено.")
+            st.toast("Событие добавлено", icon="✅")
             st.rerun()
 
     st.divider()

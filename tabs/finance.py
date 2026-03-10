@@ -159,11 +159,13 @@ def render(transactions_df, expenses_df, metrics):
                 by_model = by_model.sort_values("Сумма", ascending=False)
 
                 st.caption("По моделям")
-                st.dataframe(
-                    by_model.style.format({"Сумма": "${:,.2f}"}),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+                try:
+                    from st_aggrid import AgGrid, GridOptionsBuilder
+                    gb = GridOptionsBuilder.from_dataframe(by_model)
+                    gb.configure_default_column(sortable=True, filterable=True)
+                    AgGrid(by_model, gridOptions=gb.build(), theme="streamlit", height=200, fit_columns_on_grid_load=True, key=f"expense_model_{tab_idx}")
+                except ImportError:
+                    st.dataframe(by_model.style.format({"Сумма": "${:,.2f}"}), use_container_width=True, hide_index=True)
 
                 st.divider()
 
@@ -175,11 +177,13 @@ def render(transactions_df, expenses_df, metrics):
                 df_display["model"] = df_display["model"].fillna("—")
                 df_display = df_display.sort_values(["model", "date"], ascending=[True, False])
                 df_display["date"] = pd.to_datetime(df_display["date"]).dt.strftime("%Y-%m-%d")
-                st.dataframe(
-                    df_display.style.format({"amount": "${:,.2f}"}),
-                    use_container_width=True,
-                    hide_index=True,
-                )
+                try:
+                    from st_aggrid import AgGrid, GridOptionsBuilder
+                    gb = GridOptionsBuilder.from_dataframe(df_display)
+                    gb.configure_default_column(sortable=True, filterable=True)
+                    AgGrid(df_display, gridOptions=gb.build(), theme="streamlit", height=300, fit_columns_on_grid_load=True, key=f"expense_detail_{tab_idx}")
+                except ImportError:
+                    st.dataframe(df_display.style.format({"amount": "${:,.2f}"}), use_container_width=True, hide_index=True)
 
     else:
         st.info("Расходов в выбранном периоде нет.")

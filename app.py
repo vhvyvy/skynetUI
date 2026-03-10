@@ -22,6 +22,7 @@ import tabs.admin_kpi as admin_kpi
 import tabs.models_detail as models_detail
 import tabs.ai as ai
 import tabs.events as events_tab
+import tabs.subs as subs_tab
 import tabs.settings as settings
 
 # --- СЕРВИСЫ ---
@@ -29,9 +30,18 @@ from services.db import load_transactions, load_expenses, get_all_available_mont
 from services.metrics import calculate_metrics
 from services.plans import get_plans, compute_plan_metrics
 from components.styling import inject_premium_css
+from streamlit_extras.metric_cards import style_metric_cards
 
 st.set_page_config(layout="wide", page_icon="📊", initial_sidebar_state="expanded")
 inject_premium_css()
+style_metric_cards(
+    background_color="rgba(30, 41, 59, 0.7)",
+    border_size_px=1,
+    border_color="rgba(255, 255, 255, 0.08)",
+    border_radius_px=12,
+    border_left_color="#00d4aa",
+    box_shadow=True,
+)
 
 # ==================================================
 # ДЕФОЛТНЫЕ ПРОЦЕНТЫ (инициализация)
@@ -137,7 +147,7 @@ metrics = calculate_metrics(
 # ТАБЫ
 # ==================================================
 
-tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
+tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Сабы", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
 
 with tabs_list[0]:
     overview.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
@@ -155,22 +165,25 @@ with tabs_list[4]:
     kpi_chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[5]:
-    admin_kpi.render(transactions_df, metrics, plan_metrics, selected_year, selected_month)
+    subs_tab.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[6]:
-    plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
+    admin_kpi.render(transactions_df, metrics, plan_metrics, selected_year, selected_month)
 
 with tabs_list[7]:
-    lab.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
+    plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
 
 with tabs_list[8]:
-    structure.render(transactions_df, expenses_df, metrics, plan_metrics)
+    lab.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
 
 with tabs_list[9]:
-    events_tab.render(transactions_df, expenses_df, metrics)
+    structure.render(transactions_df, expenses_df, metrics, plan_metrics)
 
 with tabs_list[10]:
-    ai.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month, month_options)
+    events_tab.render(transactions_df, expenses_df, metrics)
 
 with tabs_list[11]:
+    ai.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month, month_options)
+
+with tabs_list[12]:
     settings.render(transactions_df, expenses_df, metrics)

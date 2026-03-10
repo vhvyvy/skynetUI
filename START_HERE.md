@@ -131,9 +131,10 @@ api_key = "ТВОЙ_OM_КЛЮЧ"
 
 ## Шаг 6: Конфиг синхронизации
 
-1. Скопируй конфиг:
-   - Windows: `copy config\notion_sync.example.json config\notion_sync.json`
-   - Mac/Linux: `cp config/notion_sync.example.json config/notion_sync.json`
+Если `config/notion_sync.json` уже создан и заполнен — шаг выполнен, переходи к Шагу 7.
+
+Иначе:
+1. Скопируй конфиг: `copy config\notion_sync.example.json config\notion_sync.json`
 2. Вставь свои ID баз (из URL Notion: `notion.so/workspace/XXXXX?v=...` → `XXXXX`):
 
 ```json

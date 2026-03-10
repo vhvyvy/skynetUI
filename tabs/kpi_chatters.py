@@ -4,6 +4,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import calendar
 from datetime import datetime
 
@@ -88,8 +89,16 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
 
 
 def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_year=None, selected_month=None):
-    st.title("📊 KPI чаттеров")
-    st.caption("Метрики Onlymonster, формулы и памятка по чтению данных")
+    tit_col, lottie_col = st.columns([6, 1])
+    with tit_col:
+        st.title("📊 KPI чаттеров")
+        st.caption("Метрики Onlymonster, формулы и памятка по чтению данных")
+    with lottie_col:
+        try:
+            from components.ui_enhanced import st_lottie_safe, LOTTIE_CHART
+            st_lottie_safe(LOTTIE_CHART, height=80, key="kpi_header_lottie")
+        except ImportError:
+            pass
 
     kpi = _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selected_month)
     if kpi is None or kpi.empty:
@@ -136,7 +145,7 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
             records = parse_kpi_csv(uploaded)
             if records and st.button("Применить"):
                 save_kpi_batch(selected_year, selected_month, records)
-                st.success(f"Загружено {len(records)} записей.")
+                st.toast(f"Загружено {len(records)} записей", icon="✅")
                 st.rerun()
     with col_load2:
         api_cfg = get_api_config()
@@ -154,7 +163,7 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
                                 st.warning("API вернул 0 записей. Нет данных за выбранный месяц или проверьте токен.")
                             else:
                                 save_kpi_batch(selected_year, selected_month, result)
-                                st.success(f"Загружено {len(result)} записей.")
+                                st.toast(f"Загружено {len(result)} записей", icon="✅")
                                 st.rerun()
                         except Exception as e:
                             st.error(f"Ошибка: {e}")
@@ -177,50 +186,62 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
     main_cols = ["chatter", "Выручка", "Транзакций (выходы)", "Средний чек (средний выход)", "Доля выручки %", "PPV Open Rate %", "APV", "Total Chats", "PPV Sold", "APC per chat", "RPC", "Volume rating", "Расчётная оплата"]
     main_cols = [c for c in main_cols if c in kpi_renamed.columns]
     main_df = kpi_renamed[main_cols].rename(columns={"chatter": "Чаттер"})
-
-    # Убираем пустые колонки (все 0 или NaN)
-    def _drop_empty_cols(df, keep_cols=None):
-        keep_cols = keep_cols or ["Чаттер"]
-        drop = []
-        for c in df.columns:
-            if c in keep_cols:
-                continue
-            s = df[c]
-            if s.isna().all():
-                drop.append(c)
-            elif pd.api.types.is_numeric_dtype(s):
-                if (s.fillna(0) == 0).all():
-                    drop.append(c)
-        return df.drop(columns=[x for x in drop if x in df.columns])
-    main_df = _drop_empty_cols(main_df)
-    fmt = {
-        "Выручка": "${:,.2f}", "Средний чек (средний выход)": "${:,.2f}", "Расчётная оплата": "${:,.2f}",
-        "APV": lambda x: f"${x:,.2f}" if pd.notna(x) else "—", "RPC": lambda x: f"${x:,.2f}" if pd.notna(x) else "—",
-        "PPV Open Rate %": lambda x: f"{x:.1f}%" if pd.notna(x) else "—",
-        "Total Chats": lambda x: f"{x:,.2f}" if pd.notna(x) else "—",
-        "PPV Sold": lambda x: f"{x:,.2f}" if pd.notna(x) else "—", "APC per chat": lambda x: f"{x:,.2f}" if pd.notna(x) else "—",
-        "Volume rating": lambda x: f"{x:,.2f}" if pd.notna(x) else "—", "Доля выручки %": "{:.1f}%",
-    }
-    st.dataframe(main_df.style.format({k: v for k, v in fmt.items() if k in main_df.columns}, na_rep="—"), use_container_width=True, hide_index=True)
+    try:
+        from st_aggrid import AgGrid, GridOptionsBuilder
+        gb = GridOptionsBuilder.from_dataframe(main_df)
+        gb.configure_default_column(sortable=True, filterable=True, resizable=True)
+        gb.configure_grid_options(domLayout="normal")
+        go_main = gb.build()
+        AgGrid(main_df.fillna("—"), gridOptions=go_main, theme="streamlit", height=400, fit_columns_on_grid_load=True, key="kpi_main_grid")
+    except ImportError:
+        fmt = {"Выручка": "${:,.2f}", "Средний чек (средний выход)": "${:,.2f}", "Расчётная оплата": "${:,.2f}", "Доля выручки %": "{:.1f}%"}
+        st.dataframe(main_df.style.format({k: v for k, v in fmt.items() if k in main_df.columns}, na_rep="—"), use_container_width=True, hide_index=True)
 
     st.divider()
 
     # ========== Дополнительные KPI ==========
+    st.subheader("Дополнительные метрики")
+    st.caption("Conversion Score, Monetization Depth, Productivity Index, Efficiency Ratio — как читать: см. памятку выше.")
     extra_cols = ["chatter", "Conversion Score", "Monetization Depth", "Productivity Index", "Efficiency Ratio", "Выручка", "RPC"]
     extra_cols = [c for c in extra_cols if c in kpi.columns]
     extra_df = kpi[extra_cols].rename(columns={"chatter": "Чаттер"})
-    extra_df = _drop_empty_cols(extra_df)
-    if len(extra_df.columns) > 1:
-        st.subheader("Дополнительные метрики")
-        st.caption("Conversion Score, Monetization Depth, Productivity Index, Efficiency Ratio — как читать: см. памятку выше.")
-        st.dataframe(
-            extra_df.style.format({
-                "Выручка": "${:,.2f}", "RPC": lambda x: f"${x:,.2f}" if pd.notna(x) else "—",
-                "Conversion Score": "{:.2f}", "Monetization Depth": "{:.2f}", "Productivity Index": "{:.2f}", "Efficiency Ratio": "{:.2f}",
-            }, na_rep="—"),
-            use_container_width=True,
-            hide_index=True,
-        )
+    try:
+        from st_aggrid import AgGrid, GridOptionsBuilder
+        gb = GridOptionsBuilder.from_dataframe(extra_df)
+        gb.configure_default_column(sortable=True, filterable=True, resizable=True)
+        go_extra = gb.build()
+        AgGrid(extra_df.fillna("—"), gridOptions=go_extra, theme="streamlit", height=300, fit_columns_on_grid_load=True, key="kpi_extra_grid")
+    except ImportError:
+        st.dataframe(extra_df.style.format({"Выручка": "${:,.2f}"}, na_rep="—"), use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Gauge charts для топ-чаттера
+    top_row = kpi.iloc[0] if len(kpi) > 0 else None
+    if top_row is not None and ("PPV Open Rate %" in kpi.columns or "Conversion Score" in kpi.columns):
+        st.subheader("Ключевые метрики топ-чаттера по выручке")
+        chatter_name = str(top_row.get("chatter", "—"))
+        st.caption(f"Топ по выручке: {chatter_name}")
+        ppv_val = top_row.get("PPV Open Rate %")
+        conv_val = top_row.get("Conversion Score")
+        rpc_val = top_row.get("RPC")
+        g1, g2, g3 = st.columns(3)
+        with g1:
+            if pd.notna(ppv_val) and ppv_val is not None:
+                fig_g = go.Figure(go.Indicator(mode="gauge+number", value=float(ppv_val), domain={"x": [0, 1], "y": [0, 1]}, title={"text": "PPV Open Rate %"}, gauge={"axis": {"range": [0, 50]}, "bar": {"color": "#00d4aa"}, "steps": [{"range": [0, 15], "color": "rgba(30,41,59,0.5)"}, {"range": [15, 30], "color": "rgba(0,212,170,0.2)"}, {"range": [30, 50], "color": "rgba(0,212,170,0.4)"}]}))
+                fig_g.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=50, b=20), height=200)
+                st.plotly_chart(fig_g, use_container_width=True)
+        with g2:
+            if pd.notna(conv_val) and conv_val is not None:
+                fig_g2 = go.Figure(go.Indicator(mode="gauge+number", value=float(conv_val), domain={"x": [0, 1], "y": [0, 1]}, title={"text": "Conversion Score"}, gauge={"axis": {"range": [0, 10]}, "bar": {"color": "#00d4aa"}, "steps": [{"range": [0, 3], "color": "rgba(30,41,59,0.5)"}, {"range": [3, 6], "color": "rgba(0,212,170,0.2)"}, {"range": [6, 10], "color": "rgba(0,212,170,0.4)"}]}))
+                fig_g2.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=50, b=20), height=200)
+                st.plotly_chart(fig_g2, use_container_width=True)
+        with g3:
+            if pd.notna(rpc_val) and rpc_val is not None:
+                fig_g3 = go.Figure(go.Indicator(mode="number", value=float(rpc_val), domain={"x": [0, 1], "y": [0, 1]}, title={"text": "RPC ($)"}, number={"prefix": "$", "valueformat": ",.2f"}))
+                fig_g3.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=50, b=20), height=200)
+                st.plotly_chart(fig_g3, use_container_width=True)
+        st.divider()
 
     # Топы
     st.divider()

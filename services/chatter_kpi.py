@@ -9,6 +9,33 @@ from services.db import get_connection
 
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chatter_id_to_name.json")
 
+CHATTER_KPI_SCHEMA = """
+CREATE TABLE IF NOT EXISTS chatter_kpi (
+  year INT NOT NULL,
+  month INT NOT NULL,
+  chatter TEXT NOT NULL,
+  ppv_open_rate NUMERIC,
+  apv NUMERIC,
+  total_chats NUMERIC,
+  model TEXT,
+  source TEXT DEFAULT 'manual',
+  PRIMARY KEY (year, month, chatter)
+);
+"""
+
+
+def _ensure_chatter_kpi_table():
+    """Создаёт таблицу chatter_kpi, если её нет."""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(CHATTER_KPI_SCHEMA)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
 
 def get_chatter_id_to_name_mapping():
     """
@@ -38,6 +65,7 @@ def get_name_to_chatter_id_reverse_mapping():
 
 def _load_kpi_from_db(year, month):
     """Загружает KPI из БД. Возвращает dict {chatter: {ppv_open_rate, apv, total_chats, model, source}}."""
+    _ensure_chatter_kpi_table()
     try:
         conn = get_connection()
         cur = conn.cursor()
@@ -104,6 +132,7 @@ def get_kpi_for_merge(year, month):
 
 def save_kpi(year, month, chatter, ppv_open_rate=None, apv=None, total_chats=None, model=None, source="manual"):
     """Сохраняет KPI для чаттера."""
+    _ensure_chatter_kpi_table()
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -126,6 +155,7 @@ def save_kpi(year, month, chatter, ppv_open_rate=None, apv=None, total_chats=Non
 
 def save_kpi_batch(year, month, records):
     """Сохраняет batch KPI из API/CSV."""
+    _ensure_chatter_kpi_table()
     conn = get_connection()
     cur = conn.cursor()
     for r in records:

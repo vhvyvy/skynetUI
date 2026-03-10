@@ -1,5 +1,6 @@
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
 import calendar
 
@@ -13,8 +14,8 @@ def render(transactions_df, expenses_df, metrics, selected_year=None, selected_m
         and selected_month == today.month
     )
 
+    # Bento-style layout: метрики в сетке
     col1, col2, col3, col4 = st.columns(4)
-
     col1.metric("Выручка", f"${metrics['revenue']:,.2f}")
     col2.metric("Расходы", f"${metrics['expenses']:,.2f}")
     col3.metric("Чистая прибыль", f"${metrics['net']:,.2f}")
@@ -30,15 +31,29 @@ def render(transactions_df, expenses_df, metrics, selected_year=None, selected_m
             f_exp = metrics["expenses"] * factor
             f_net = metrics["net"] * factor
             f_margin = (f_net / f_rev * 100) if f_rev > 0 else 0
+            st.toast(f"Прогноз на конец месяца: выручка ~${f_rev:,.0f}, прибыль ~${f_net:,.0f}", icon="📅")
             st.caption(f"📅 Прогноз на конец месяца (на текущем темпе за {days_elapsed} дн.)")
+            # Bento-style прогноз
             st.markdown(
                 f"""
-                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
-                    <span style="background: rgba(151, 166, 195, 0.25); padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.95rem;">💰 Выручка ~${f_rev:,.0f}</span>
-                    <span style="background: rgba(151, 166, 195, 0.25); padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.95rem;">📤 Расходы ~${f_exp:,.0f}</span>
-                    <span style="background: rgba(151, 166, 195, 0.25); padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.95rem;">💵 Прибыль ~${f_net:,.0f}</span>
-                    <span style="background: rgba(151, 166, 195, 0.25); padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.95rem;">📊 Маржа ~{f_margin:.1f}%</span>
-                </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <div style="background: rgba(30,41,59,0.8); border: 1px solid rgba(0,212,170,0.2); padding: 1rem; border-radius: 12px; border-left: 4px solid #00d4aa;">
+                            <div style="color: #94a3b8; font-size: 0.85rem;">Выручка (прогноз)</div>
+                            <div style="color: #f8fafc; font-size: 1.25rem; font-weight: 700;">~${f_rev:,.0f}</div>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.8); border: 1px solid rgba(0,212,170,0.2); padding: 1rem; border-radius: 12px; border-left: 4px solid #00d4aa;">
+                            <div style="color: #94a3b8; font-size: 0.85rem;">Расходы (прогноз)</div>
+                            <div style="color: #f8fafc; font-size: 1.25rem; font-weight: 700;">~${f_exp:,.0f}</div>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.8); border: 1px solid rgba(0,212,170,0.2); padding: 1rem; border-radius: 12px; border-left: 4px solid #00d4aa;">
+                            <div style="color: #94a3b8; font-size: 0.85rem;">Прибыль (прогноз)</div>
+                            <div style="color: #00d4aa; font-size: 1.25rem; font-weight: 700;">~${f_net:,.0f}</div>
+                        </div>
+                        <div style="background: rgba(30,41,59,0.8); border: 1px solid rgba(0,212,170,0.2); padding: 1rem; border-radius: 12px; border-left: 4px solid #00d4aa;">
+                            <div style="color: #94a3b8; font-size: 0.85rem;">Маржа</div>
+                            <div style="color: #f8fafc; font-size: 1.25rem; font-weight: 700;">~{f_margin:.1f}%</div>
+                        </div>
+                    </div>
                 """,
                 unsafe_allow_html=True,
             )
@@ -74,12 +89,22 @@ def render(transactions_df, expenses_df, metrics, selected_year=None, selected_m
 
     data = {"Категория": cat_names, "Сумма": cat_values}
 
-    fig = px.pie(
-        data,
-        names="Категория",
-        values="Сумма",
-        hole=0.6
-    )
-
-    fig.update_layout(template="plotly_dark")
-    st.plotly_chart(fig, use_container_width=True)
+    # Два варианта визуализации: donut + treemap
+    tab1, tab2 = st.tabs(["Круговая диаграмма", "Treemap"])
+    with tab1:
+        fig = px.pie(
+            data,
+            names="Категория",
+            values="Сумма",
+            hole=0.6
+        )
+        fig.update_layout(template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
+    with tab2:
+        fig2 = px.treemap(
+            data,
+            path=["Категория"],
+            values="Сумма",
+        )
+        fig2.update_layout(template="plotly_dark", margin=dict(t=0, l=0, r=0, b=0))
+        st.plotly_chart(fig2, use_container_width=True)

@@ -1,32 +1,221 @@
 """
-Onlymonster API — PPV Open Rate, APV, Total Chats по чаттерам.
+Onlymonster API — метрики чаттеров, аккаунты, trial links, tracking links.
 API: https://omapi.onlymonster.ai/docs/json
-Эндпоинт: GET /api/v0/users/metrics
 """
 import json
+import os
 import streamlit as st
 import pandas as pd
-import urllib.request
-import urllib.error
 from urllib.parse import urlencode
 from datetime import datetime
 
+import requests
+
+# User-Agent: некоторые API блокируют запросы без браузерного UA
+DEFAULT_HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "SkynetUI/1.0 (Streamlit Dashboard)",
+}
+
 
 def get_api_config():
-    """Читает конфиг из secrets."""
+    """Читает конфиг: secrets.toml или .env (локально)."""
+    url, api_key, account_ids = "", "", None
     try:
-        return {
-            "url": st.secrets.get("onlymonster", {}).get("api_url", ""),
-            "api_key": st.secrets.get("onlymonster", {}).get("api_key", ""),
-        }
+        om = st.secrets.get("onlymonster", {})
+        url = om.get("api_url") or ""
+        api_key = om.get("api_key") or ""
+        aid = om.get("account_ids")
+        if aid is not None:
+            if isinstance(aid, list):
+                account_ids = {str(x).strip() for x in aid if x}
+            else:
+                account_ids = {str(x).strip() for x in str(aid).split(",") if str(x).strip()}
     except Exception:
-        return {"url": "", "api_key": ""}
+        pass
+    if not url or not api_key:
+        url = url or os.getenv("ONLYMONSTER_API_URL") or os.getenv("OM_API_URL") or ""
+        api_key = api_key or os.getenv("ONLYMONSTER_API_KEY") or os.getenv("OM_API_KEY") or ""
+    if account_ids is None:
+        env_ids = os.getenv("ONLYMONSTER_ACCOUNT_IDS") or os.getenv("OM_ACCOUNT_IDS") or ""
+        account_ids = {x.strip() for x in env_ids.split(",") if x.strip()} or None
+    return {"url": url, "api_key": api_key, "account_ids": account_ids}
 
 
 def _api_request(url, headers, method="GET"):
-    req = urllib.request.Request(url, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode())
+    """Выполняет запрос; при 403 возвращает тело ответа для диагностики."""
+    h = {**DEFAULT_HEADERS, **headers}
+    r = requests.request(method, url, headers=h, timeout=30)
+    if r.status_code == 403:
+        try:
+            body = r.json()
+            msg = body.get("message") or body.get("error") or r.text[:500]
+        except Exception:
+            msg = r.text[:500] if r.text else "No response body"
+        raise PermissionError(f"403 Forbidden. API ответ: {msg}. Убедись, что API-доступ включён в Onlymonster и у токена есть права.")
+    if r.status_code == 401:
+        raise ValueError("Неверный API токен Onlymonster")
+    r.raise_for_status()
+    return r.json()
+
+
+def _to_iso(d):
+    """Форматирует дату в ISO 8601 Zulu."""
+    if d is None:
+        return None
+    if isinstance(d, datetime):
+        return d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    if isinstance(d, str):
+        return d if "T" in d else f"{d}T00:00:00.000Z"
+    return str(d)
+
+
+def fetch_accounts(with_expired=False):
+    """
+    GET /api/v0/accounts — список аккаунтов OnlyFans.
+    Возвращает list of {id, platform_account_id, platform, name, username, subscribe_price, subscription_expiration_date, ...}.
+    """
+    config = get_api_config()
+    if not config["url"] or not config["api_key"]:
+        return None
+    base = config["url"].rstrip("/")
+    headers = {"x-om-auth-token": config["api_key"], "Accept": "application/json"}
+    all_accounts = []
+    cursor = None
+    while True:
+        params = {"limit": 100}
+        if cursor:
+            params["cursor"] = cursor
+        if with_expired:
+            params["withExpiredSubscriptions"] = "true"
+        qs = urlencode(params)
+        url = f"{base}/api/v0/accounts?{qs}"
+        try:
+            data = _api_request(url, headers)
+        except (PermissionError, ValueError):
+            raise
+        except requests.RequestException as e:
+            raise RuntimeError(f"Ошибка Onlymonster API: {e}") from e
+        accounts = data.get("accounts") or []
+        all_accounts.extend(accounts)
+        cursor = data.get("nextCursor")
+        if not cursor or not accounts:
+            break
+    return all_accounts
+
+
+def fetch_trial_links(platform_account_id, start_date=None, end_date=None, all_links=False):
+    """
+    GET /api/v0/platforms/onlyfans/accounts/{platform_account_id}/trial-links
+    Возвращает list of {id, name, claims, claims_limit, url, duration_days, expires_at, is_active, clicks, created_at}.
+    API фильтрует по дате создания ссылки. При all_links=True берётся широкий диапазон (2020–сейчас),
+    чтобы подтянуть все ссылки и отфильтровать активные на клиенте.
+    """
+    config = get_api_config()
+    if not config["url"] or not config["api_key"]:
+        return None
+    base = config["url"].rstrip("/")
+    headers = {"x-om-auth-token": config["api_key"], "Accept": "application/json"}
+    if all_links:
+        from_ts = "2020-01-01T00:00:00.000Z"
+        to_ts = datetime.utcnow().strftime("%Y-%m-%dT23:59:59.999Z")
+    else:
+        from_ts = _to_iso(start_date) or "2020-01-01T00:00:00.000Z"
+        to_ts = _to_iso(end_date) or datetime.utcnow().strftime("%Y-%m-%dT23:59:59.999Z")
+    all_items = []
+    cursor = None
+    while True:
+        params = {"start": from_ts, "end": to_ts, "limit": 100}
+        if cursor:
+            params["cursor"] = cursor
+        qs = urlencode(params)
+        url = f"{base}/api/v0/platforms/onlyfans/accounts/{platform_account_id}/trial-links?{qs}"
+        try:
+            data = _api_request(url, headers)
+        except (PermissionError, ValueError):
+            raise
+        except requests.RequestException as e:
+            raise RuntimeError(f"Ошибка Onlymonster API: {e}") from e
+        items = data.get("items") or []
+        all_items.extend(items)
+        cursor = data.get("cursor")
+        if not cursor or len(items) < 100:
+            break
+    return all_items
+
+
+def fetch_tracking_links(platform_account_id, start_date=None, end_date=None, all_links=False):
+    """
+    GET /api/v0/platforms/onlyfans/accounts/{platform_account_id}/tracking-links
+    Возвращает list of {id, name, subscribers, url, is_active, clicks, created_at}.
+    При all_links=True — широкий диапазон (2020–сейчас), чтобы подтянуть все ссылки.
+    """
+    config = get_api_config()
+    if not config["url"] or not config["api_key"]:
+        return None
+    base = config["url"].rstrip("/")
+    headers = {"x-om-auth-token": config["api_key"], "Accept": "application/json"}
+    if all_links:
+        from_ts = "2020-01-01T00:00:00.000Z"
+        to_ts = datetime.utcnow().strftime("%Y-%m-%dT23:59:59.999Z")
+    else:
+        from_ts = _to_iso(start_date) or "2020-01-01T00:00:00.000Z"
+        to_ts = _to_iso(end_date) or datetime.utcnow().strftime("%Y-%m-%dT23:59:59.999Z")
+    all_items = []
+    cursor = None
+    while True:
+        params = {"start": from_ts, "end": to_ts, "limit": 100}
+        if cursor:
+            params["cursor"] = cursor
+        qs = urlencode(params)
+        url = f"{base}/api/v0/platforms/onlyfans/accounts/{platform_account_id}/tracking-links?{qs}"
+        try:
+            data = _api_request(url, headers)
+        except (PermissionError, ValueError):
+            raise
+        except requests.RequestException as e:
+            raise RuntimeError(f"Ошибка Onlymonster API: {e}") from e
+        items = data.get("items") or []
+        all_items.extend(items)
+        cursor = data.get("cursor")
+        if not cursor or len(items) < 100:
+            break
+    return all_items
+
+
+def fetch_transactions(platform_account_id, start_date=None, end_date=None):
+    """
+    GET /api/v0/platforms/onlyfans/accounts/{platform_account_id}/transactions
+    Возвращает list of {id, amount, fan, type, status, timestamp}.
+    type: Tip from, Payment for message, recurring subscription, post purchase, live stream, unknown.
+    """
+    config = get_api_config()
+    if not config["url"] or not config["api_key"]:
+        return None
+    base = config["url"].rstrip("/")
+    headers = {"x-om-auth-token": config["api_key"], "Accept": "application/json"}
+    from_ts = _to_iso(start_date) or "2020-01-01T00:00:00.000Z"
+    to_ts = _to_iso(end_date) or datetime.utcnow().strftime("%Y-%m-%dT23:59:59.999Z")
+    all_items = []
+    cursor = None
+    while True:
+        params = {"start": from_ts, "end": to_ts, "limit": 1000}
+        if cursor:
+            params["cursor"] = cursor
+        qs = urlencode(params)
+        url = f"{base}/api/v0/platforms/onlyfans/accounts/{platform_account_id}/transactions?{qs}"
+        try:
+            data = _api_request(url, headers)
+        except (PermissionError, ValueError):
+            raise
+        except requests.RequestException as e:
+            raise RuntimeError(f"Ошибка Onlymonster API: {e}") from e
+        items = data.get("items") or []
+        all_items.extend(items)
+        cursor = data.get("cursor")
+        if not cursor or len(items) < 1000:
+            break
+    return all_items
 
 
 def fetch_chatter_metrics(creator_ids=None, user_ids=None, start_date=None, end_date=None):
@@ -49,18 +238,8 @@ def fetch_chatter_metrics(creator_ids=None, user_ids=None, start_date=None, end_
     if not base:
         return None
 
-    # Форматируем даты в ISO 8601 Zulu
-    def to_iso(d):
-        if d is None:
-            return None
-        if isinstance(d, datetime):
-            return d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        if isinstance(d, str):
-            return d if "T" in d else f"{d}T00:00:00.000Z"
-        return str(d)
-
-    from_ts = to_iso(start_date)
-    to_ts = to_iso(end_date)
+    from_ts = _to_iso(start_date)
+    to_ts = _to_iso(end_date)
     if not from_ts or not to_ts:
         return None
 
@@ -87,11 +266,9 @@ def fetch_chatter_metrics(creator_ids=None, user_ids=None, start_date=None, end_
 
         try:
             data = _api_request(url, headers)
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                raise ValueError("Неверный API токен Onlymonster")
+        except (PermissionError, ValueError):
             raise
-        except Exception as e:
+        except requests.RequestException as e:
             raise RuntimeError(f"Ошибка Onlymonster API: {e}") from e
 
         items = data.get("items") or []
