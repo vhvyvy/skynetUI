@@ -1,12 +1,38 @@
 import calendar
 import os
+from urllib.parse import urlparse
 import streamlit as st
 import pandas as pd
 import psycopg2
 
 
+def _parse_database_url(url):
+    """Парсит DATABASE_URL / DATABASE_PUBLIC_URL (Railway)."""
+    if not url or not url.strip():
+        return None
+    try:
+        p = urlparse(url)
+        if p.scheme not in ("postgresql", "postgres"):
+            return None
+        return {
+            "host": p.hostname,
+            "port": p.port or 5432,
+            "database": (p.path or "").lstrip("/") or "railway",
+            "user": p.username or "postgres",
+            "password": p.password or "",
+        }
+    except Exception:
+        return None
+
+
 def _get_db_config():
-    """Читает конфиг БД из st.secrets или env (для Railway и др.)."""
+    """Читает конфиг БД из DATABASE_URL, st.secrets или env (Railway и др.)."""
+    db_url = os.getenv("DATABASE_PUBLIC_URL") or os.getenv("DATABASE_URL")
+    if db_url:
+        parsed = _parse_database_url(db_url)
+        if parsed:
+            return parsed
+
     try:
         return {
             "host": st.secrets.get("db_host") or os.getenv("PG_HOST") or os.getenv("PGHOST") or os.getenv("DB_HOST") or "localhost",
@@ -38,8 +64,8 @@ def get_connection():
         user=cfg["user"],
         password=cfg["password"],
     )
-    # Neon и другие облачные БД требуют SSL
-    if ".neon.tech" in (cfg["host"] or ""):
+    # Neon, Railway и др. облачные БД требуют SSL
+    if cfg["host"] and (".neon.tech" in cfg["host"] or "proxy.rlwy.net" in cfg["host"]):
         kwargs["sslmode"] = "require"
     return psycopg2.connect(**kwargs)
 
