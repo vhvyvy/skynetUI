@@ -258,9 +258,13 @@ def ensure_shift_exists(shift_id, cur, conn):
 
 def parse_transaction_row(row, shift_type="relation"):
     props = row.get("properties", {})
-    amount_prop = props.get("Сумма выхода") or props.get("Сумма") or props.get("Amount") or {}
+    amount_prop = (
+        props.get("Сумма выхода") or props.get("Сумма") or props.get("Amount")
+        or props.get("Amount Spent") or {}
+    )
     amount = float(amount_prop.get("number") or 0) if isinstance(amount_prop, dict) else 0
-    date_obj = (props.get("Date") or props.get("date") or {}).get("date")
+    date_prop = props.get("Date") or props.get("date") or props.get("Transaction Date") or {}
+    date_obj = (date_prop or {}).get("date") if isinstance(date_prop, dict) else None
     date_val = date_obj["start"] if date_obj else None
 
     model_prop = props.get("Модель") or props.get("модель") or props.get("Model") or props.get("model")
