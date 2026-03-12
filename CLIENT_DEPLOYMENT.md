@@ -122,13 +122,27 @@ account_ids = "ID1, ID2, ID3"   # опционально: только эти а
 ```bash
 # 1. Репо на GitHub (чистая версия)
 # 2. railway.app → New Project → Deploy from GitHub
-# 3. Variables:
-#    PG_HOST, PG_PORT, PG_DB, PG_USER, PG_PASSWORD
-#    NOTION_TOKEN
-#    OPENAI_API_KEY (опц.)
-#    ONLYMONSTER_API_KEY=om_token_xxx
-#    ONLYMONSTER_API_URL=https://omapi.onlymonster.ai
+# 3. Variables — см. раздел 7
 # 4. config/notion_sync.json — закоммитить или собирать из env
 ```
 
 Если `config/notion_sync.json` закоммичен с ID баз клиента — всё подхватится. Иначе создай его вручную в репо для клиента.
+
+---
+
+## 7. Variables клиента (Railway)
+
+Добавь в Railway → skynetUI → Variables:
+
+| Переменная | Описание |
+|------------|----------|
+| `CLIENT_MODE` | `1` — клиентская версия (без retention) |
+| `DATABASE_PUBLIC_URL` | Reference: `${{Postgres.DATABASE_PUBLIC_URL}}` |
+| `NOTION_TOKEN` | Токен Notion |
+| `PG_HOST`, `PG_PORT`, `PG_DB`, `PG_USER`, `PG_PASSWORD` | Если не используешь Reference |
+| `ONLYMONSTER_API_KEY` | Токен Onlymonster (начинается с `om_token_`) |
+| `ONLYMONSTER_API_URL` | `https://omapi.onlymonster.ai` |
+| `ONLYMONSTER_ACCOUNT_IDS` | `27910,162962` — ID аккаунтов (опц.) |
+| `OPENAI_API_KEY` | Ключ OpenAI для вкладки AI |
+
+**Маппинг Onlymonster ID → ник** (для KPI): `data/chatter_id_to_name.json`. У клиента: 27910→@JI9JI9, 162962→@pukvochko (уже добавлено в репо).
