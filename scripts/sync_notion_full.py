@@ -128,11 +128,16 @@ def resolve_relation(page_id, cache=None):
 # ==================== EXPENSES ====================
 
 def sync_expenses(config):
-    db_ids = config.get("expenses", {}).get("database_ids", [])
-    if not db_ids:
-        ids_env = os.getenv("NOTION_EXPENSES_DATABASE_IDS") or os.getenv("NOTION_EXPENSES_DATABASE_ID")
-        if ids_env:
-            db_ids = [x.strip() for x in str(ids_env).split(",") if x.strip()]
+    # Env переопределяет config — для разделения личный/клиент (разные секреты)
+    # При NOTION_SYNC_CLIENT=1 НЕ используем config — только env (защита от пересечения)
+    is_client = os.getenv("NOTION_SYNC_CLIENT", "").strip().lower() in ("1", "true", "yes")
+    ids_env = os.getenv("NOTION_EXPENSES_DATABASE_IDS") or os.getenv("NOTION_EXPENSES_DATABASE_ID")
+    if ids_env:
+        db_ids = [x.strip() for x in str(ids_env).split(",") if x.strip()]
+    elif not is_client:
+        db_ids = config.get("expenses", {}).get("database_ids", [])
+    else:
+        db_ids = []
     if not db_ids:
         print("Нет database_ids для expenses")
         return
@@ -220,23 +225,25 @@ def ensure_shift_exists(shift_id, cur, conn):
 
 def parse_transaction_row(row, shift_type="relation"):
     props = row.get("properties", {})
-    amount = props.get("Сумма выхода", {}).get("number") or 0
-    date_obj = props.get("Date", {}).get("date")
+    amount_prop = props.get("Сумма выхода") or props.get("Сумма") or props.get("Amount") or {}
+    amount = float(amount_prop.get("number") or 0) if isinstance(amount_prop, dict) else 0
+    date_obj = (props.get("Date") or props.get("date") or {}).get("date")
     date_val = date_obj["start"] if date_obj else None
 
-    model_rel = props.get("модель", {}).get("relation", [])
+    model_prop = props.get("Модель") or props.get("модель") or props.get("Model") or props.get("model")
+    model_rel = (model_prop or {}).get("relation", []) if isinstance(model_prop, dict) else []
     model_name = get_page_title(model_rel[0]["id"], model_cache) if model_rel else None
 
     chatter = None
-    cp = props.get("Чаттер", {})
-    ct = cp.get("type")
-    if ct == "rich_text" and cp.get("rich_text"):
+    cp = props.get("Чаттер") or props.get("Chatter") or props.get("чаттер") or {}
+    ct = (cp or {}).get("type")
+    if ct == "rich_text" and (cp or {}).get("rich_text"):
         chatter = cp["rich_text"][0].get("plain_text")
-    elif ct == "select" and cp.get("select"):
+    elif ct == "select" and (cp or {}).get("select"):
         chatter = cp["select"].get("name")
-    elif ct == "people" and cp.get("people"):
+    elif ct == "people" and (cp or {}).get("people"):
         chatter = cp["people"][0].get("name")
-    elif ct == "relation" and cp.get("relation"):
+    elif ct == "relation" and (cp or {}).get("relation"):
         chatter = get_page_title(cp["relation"][0]["id"], chatter_cache)
 
     shift_val = None
@@ -264,7 +271,17 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
         resp = requests.post(url, headers=HEADERS, json=payload, timeout=30)
         data = resp.json()
 
-        for row in data.get("results", []):
+        if data.get("object") == "error" or data.get("code"):
+            print(f"  Notion API error: {data.get('message', data.get('code', 'unknown'))}")
+            break
+
+        rows = data.get("results", [])
+        if not next_cursor and not rows:
+            print(f"  Notion вернул 0 строк. Проверь: 1) Интеграция добавлена в базу (Share→Invite) 2) ID базы верный")
+        elif not next_cursor and rows:
+            print(f"  Notion: получено {len(rows)} страниц (будут подгружаться дальше по курсору)")
+
+        for row in rows:
             notion_id = row.get("id")
             date_val, model, chatter, amount, shift_val = parse_transaction_row(row, shift_type)
             if not model:
@@ -300,13 +317,20 @@ def sync_transactions(config, truncate=False):
     tcfg = config.get("transactions", {})
     default_shift = tcfg.get("shift_type", "relation")
 
-    # Собираем все базы: основная + из month_overrides
+    # Env переопределяет config — для разделения личный/клиент (разные секреты)
+    # При NOTION_SYNC_CLIENT=1 НЕ используем config — только env (защита от пересечения)
+    is_client = os.getenv("NOTION_SYNC_CLIENT", "").strip().lower() in ("1", "true", "yes")
+    main_id = os.getenv("NOTION_TRANSACTIONS_DATABASE_ID") or os.getenv("DATABASE_ID")
+    if not main_id and not is_client:
+        main_id = tcfg.get("database_id")
+
     sources = []
-    main_id = tcfg.get("database_id") or os.getenv("DATABASE_ID")
     if main_id:
         sources.append((main_id, default_shift))
 
-    for month_key, override in (tcfg.get("month_overrides") or {}).items():
+    # month_overrides только для личного sync (config)
+    use_config_overrides = not is_client and not os.getenv("NOTION_TRANSACTIONS_DATABASE_ID")
+    for month_key, override in ((tcfg.get("month_overrides") or {}) if use_config_overrides else {}).items():
         oid = override.get("database_id")
         oshift = override.get("shift_type", default_shift)
         if oid and (oid, oshift) not in [(s[0], s[1]) for s in sources]:
