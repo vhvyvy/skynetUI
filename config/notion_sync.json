@@ -17,6 +17,10 @@
       "2025-02": {
         "database_id": "317fad2b5c5780b08465c72b4c2e3017",
         "shift_type": "select"
+      },
+      "2025-03": {
+        "database_id": "317fad2b5c5780888ae3d2f6dc078d4c",
+        "shift_type": "select"
       }
     }
   }
