@@ -54,7 +54,11 @@ def render(transactions_df, metrics, plan_metrics=None, selected_year=None, sele
     n_admins = 2 if IS_CLIENT else len(by_shift)  # клиент: 2 админа (9%/2=4.5%), иначе по сменам
     admin_pct_each = admin_pct_total / max(n_admins, 1)  # каждый админ: 4.5% при 2-х, 3% при 3-х
     by_shift["Средний чек"] = (by_shift["Выручка"] / by_shift["Транзакций"]).round(2)
-    by_shift["Расчётная оплата"] = (total_revenue * admin_pct_each).round(2)  # каждый = % от тотала агентства
+    # Клиент: 2 админа, но смен может быть 3 — считаем общий 9% и делим по доле выручки смены
+    if IS_CLIENT and len(by_shift) != n_admins:
+        by_shift["Расчётная оплата"] = (by_shift["Выручка"] * admin_pct_total).round(2)
+    else:
+        by_shift["Расчётная оплата"] = (total_revenue * admin_pct_each).round(2)
     by_shift["Доля %"] = (by_shift["Выручка"] / total_revenue * 100).round(1) if total_revenue > 0 else 0
     by_shift["Продуктивность $/день"] = by_shift.apply(
         lambda r: round(r["Выручка"] / r["Уникальных_дат"], 2) if r["Уникальных_дат"] > 0 else None, axis=1
