@@ -1,10 +1,23 @@
 {
   "expenses": {
-    "database_ids": ["50cd13f2056982519df88164c162c890"]
+    "database_ids": ["317fad2b5c5780888ae3d2f6dc078d4c"]
   },
   "transactions": {
-    "database_id": "154d13f205698272837f81dc3377fadd",
+    "database_id": "317fad2b5c5780b08465c72b4c2e3017",
     "shift_type": "select",
-    "month_overrides": {}
+    "month_overrides": {
+      "2024-12": {
+        "database_id": "2ddfad2b5c5780b3a747c76bcfa433e7",
+        "shift_type": "select"
+      },
+      "2025-01": {
+        "database_id": "2fbfad2b5c5780ddb226e47410bc8a10",
+        "shift_type": "select"
+      },
+      "2025-02": {
+        "database_id": "317fad2b5c5780b08465c72b4c2e3017",
+        "shift_type": "select"
+      }
+    }
   }
 }
