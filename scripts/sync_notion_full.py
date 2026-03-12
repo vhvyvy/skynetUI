@@ -62,19 +62,52 @@ def get_connection():
     return psycopg2.connect(**kwargs)
 
 
-def fetch_notion_db(db_id):
-    url = f"https://api.notion.com/v1/databases/{db_id}/query"
-    results = []
-    start_cursor = None
-    while True:
-        payload = {"start_cursor": start_cursor} if start_cursor else {}
-        resp = requests.post(url, headers=HEADERS, json=payload, timeout=30)
+def _resolve_page_to_database_id(page_id):
+    """Если ID — страница с вложенной базой, возвращаем ID базы. Иначе None."""
+    block_id = page_id.replace("-", "")  # Notion API принимает с дефисами или без
+    url = f"https://api.notion.com/v1/blocks/{block_id}/children"
+    try:
+        resp = requests.get(url, headers=HEADERS, params={"page_size": 50}, timeout=15)
         data = resp.json()
-        results.extend(data.get("results", []))
-        if not data.get("has_more"):
-            break
-        start_cursor = data.get("next_cursor")
-    return results
+        if data.get("object") == "error":
+            return None
+        for block in data.get("results", []):
+            if block.get("type") == "child_database":
+                # id блока child_database = id базы данных
+                return block.get("id", "").replace("-", "")
+        return None
+    except Exception:
+        return None
+
+
+def fetch_notion_db(db_id):
+    """Загружает страницы из Notion database. Если db_id — страница, пробует найти вложенную базу."""
+    def _fetch(actual_id):
+        url = f"https://api.notion.com/v1/databases/{actual_id}/query"
+        results = []
+        start_cursor = None
+        while True:
+            payload = {"start_cursor": start_cursor} if start_cursor else {}
+            resp = requests.post(url, headers=HEADERS, json=payload, timeout=30)
+            data = resp.json()
+            if data.get("object") == "error" or data.get("code"):
+                return None, data.get("message", "unknown")
+            results.extend(data.get("results", []))
+            if not data.get("has_more"):
+                break
+            start_cursor = data.get("next_cursor")
+        return results, None
+
+    out, err = _fetch(db_id)
+    if err and "page, not a database" in str(err):
+        resolved = _resolve_page_to_database_id(db_id)
+        if resolved:
+            print(f"  [expenses] ID {db_id[:8]}... — страница, найдена база {resolved[:8]}...")
+            out, err = _fetch(resolved)
+    if err:
+        print(f"  Notion API error (expenses {db_id[:8]}...): {err}")
+        return []
+    return out
 
 
 def _title(prop):
@@ -272,7 +305,15 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
         data = resp.json()
 
         if data.get("object") == "error" or data.get("code"):
-            print(f"  Notion API error: {data.get('message', data.get('code', 'unknown'))}")
+            msg = data.get("message", "")
+            if "page, not a database" in str(msg):
+                resolved = _resolve_page_to_database_id(db_id)
+                rid = (resolved or "").replace("-", "")
+                bid = db_id.replace("-", "")
+                if rid and rid != bid:
+                    print(f"  ID {db_id[:8]}... — страница, найдена вложенная база {resolved[:8]}..., retry")
+                    return _sync_one_transaction_db(resolved, shift_type, cur, conn, use_upsert)
+            print(f"  Notion API error: {msg or data.get('code', 'unknown')}")
             break
 
         rows = data.get("results", [])
