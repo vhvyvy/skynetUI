@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       truncate_transactions:
-        description: 'Очистить transactions перед sync'
+        description: 'Очистить transactions перед sync (рекомендуется для актуальных данных)'
         required: false
-        default: false
+        default: true
         type: boolean
 
 jobs:
@@ -34,7 +34,7 @@ jobs:
           PGSSLMODE: require
         continue-on-error: true
       - run: pip install -r requirements.txt
-      - run: python scripts/sync_notion_full.py ${{ github.event.inputs.truncate_transactions == 'true' && '--truncate-transactions' || '' }}
+      - run: python scripts/sync_notion_full.py --truncate-transactions
         env:
           PG_HOST: ${{ secrets.PG_HOST_CLIENT }}
           PG_PORT: ${{ secrets.PG_PORT_CLIENT }}
