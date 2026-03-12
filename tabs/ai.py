@@ -57,22 +57,6 @@ def render(
     st.title("AI")
     st.caption("AI-аналитик с полным доступом к данным агентства. GPT-4o.")
 
-    # KPI датафрейм для контекста
-    kpi_df = None
-    if transactions_df is not None and not transactions_df.empty and metrics:
-        kpi_df = _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selected_month)
-
-    context = build_full_context(
-        transactions_df,
-        expenses_df,
-        metrics,
-        plan_metrics,
-        selected_year or 2025,
-        selected_month or 1,
-        kpi_df=kpi_df,
-        month_options=month_options or [],
-    )
-
     if "ai_messages" not in st.session_state:
         st.session_state.ai_messages = []
 
@@ -85,13 +69,8 @@ def render(
                 st.session_state.ai_quick_prompt = qp["prompt"]
                 st.rerun()
 
-    if "ai_quick_prompt" in st.session_state:
-        prompt = st.session_state.pop("ai_quick_prompt")
-        st.session_state.ai_messages.append({"role": "user", "content": prompt})
-        with st.spinner("Анализирую…"):
-            reply = chat_with_context(context, prompt, messages_history=st.session_state.ai_messages[:-1])
-        st.session_state.ai_messages.append({"role": "assistant", "content": reply})
-        st.rerun()
+    need_context = "ai_quick_prompt" in st.session_state
+    user_input = None
 
     st.divider()
     st.subheader("Чат")
@@ -101,8 +80,35 @@ def render(
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Поле ввода
+    # Поле ввода (рендерим до проверки user_input, чтобы не ломать layout)
     user_input = st.chat_input("Задай вопрос по данным агентства…")
+    if user_input:
+        need_context = True
+
+    # Собираем контекст только когда нужен (запрос/кнопка) — ленивая загрузка
+    if need_context:
+        kpi_df = None
+        if transactions_df is not None and not transactions_df.empty and metrics:
+            kpi_df = _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selected_month)
+        context = build_full_context(
+            transactions_df,
+            expenses_df,
+            metrics,
+            plan_metrics,
+            selected_year or 2025,
+            selected_month or 1,
+            kpi_df=kpi_df,
+            _month_options_tuple=tuple(month_options or []),
+        )
+
+    if "ai_quick_prompt" in st.session_state:
+        prompt = st.session_state.pop("ai_quick_prompt")
+        st.session_state.ai_messages.append({"role": "user", "content": prompt})
+        with st.spinner("Анализирую…"):
+            reply = chat_with_context(context, prompt, messages_history=st.session_state.ai_messages[:-1])
+        st.session_state.ai_messages.append({"role": "assistant", "content": reply})
+        st.rerun()
+
     if user_input:
         st.session_state.ai_messages.append({"role": "user", "content": user_input})
         with st.spinner("Думаю…"):

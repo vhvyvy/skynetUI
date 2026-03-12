@@ -1,10 +1,12 @@
 """
 AI-анализ: сбор полного контекста из всех данных системы.
+Кеширование для ускорения вкладки AI.
 """
 import json
 import pandas as pd
 from datetime import datetime
 import calendar
+import streamlit as st
 
 from services.db import load_transactions, load_expenses, get_all_available_months
 from services.plans import get_plans, compute_plan_metrics
@@ -37,6 +39,33 @@ def _month_summary(transactions_df, expenses_df, metrics, plan_metrics, year, mo
     return s
 
 
+@st.cache_data(ttl=300)
+def _get_month_comparison_parts(_month_options: tuple) -> list:
+    """
+    Кешируемая загрузка сводок по месяцам (самый тяжёлый блок — много запросов к БД).
+    _month_options: tuple of (year, month) — до 6 последних месяцев.
+    """
+    MONTHS_RU = {
+        1: "Январь", 2: "Февраль", 3: "Март", 4: "Апрель", 5: "Май", 6: "Июнь",
+        7: "Июль", 8: "Август", 9: "Сентябрь", 10: "Октябрь", 11: "Ноябрь", 12: "Декабрь",
+    }
+    parts = []
+    for y, m in _month_options[:6]:
+        start = datetime(y, m, 1)
+        end = datetime(y, m, calendar.monthrange(y, m)[1])
+        trx = load_transactions(start, end)
+        exp = load_expenses(start, end)
+        rev = trx["amount"].sum() if trx is not None and not trx.empty else 0
+        exp_sum = exp["amount"].sum() if exp is not None and not exp.empty else 0
+        model_rev = trx.groupby("model")["amount"].sum().to_dict() if trx is not None and not trx.empty and "model" in trx.columns else {}
+        plans = get_plans(y, m)
+        pm = compute_plan_metrics(model_rev, plans) if plans else None
+        net = rev - (pm["total_chatter_cut"] if pm else rev * 0.25) - rev * 0.23 - rev * 0.09 - exp_sum
+        parts.append(f"{MONTHS_RU.get(m, m)} {y}: выручка ${rev:,.2f}, расходы ${exp_sum:,.2f}, прибыль ~${net:,.2f}")
+    return parts
+
+
+@st.cache_data(ttl=300)
 def build_full_context(
     transactions_df,
     expenses_df,
@@ -45,11 +74,12 @@ def build_full_context(
     selected_year,
     selected_month,
     kpi_df=None,
-    month_options=None,
+    _month_options_tuple=None,
 ):
     """
     Собирает полный контекст для AI из всех данных.
     Возвращает строку с полным дампом для промпта.
+    Кеш 5 мин — при смене месяца или данных получим свежий контекст.
     """
     MONTHS_RU = {
         1: "Январь", 2: "Февраль", 3: "Март", 4: "Апрель", 5: "Май", 6: "Июнь",
@@ -145,21 +175,11 @@ def build_full_context(
             parts.append(kpi_df[cols].head(30).to_string(index=False))
         parts.append("")
 
-    # 8. Сравнение месяцев (если есть другие месяцы)
-    if month_options:
+    # 8. Сравнение месяцев (кешируется — самый тяжёлый блок)
+    if _month_options_tuple:
         parts.append("--- Доступные месяцы для сравнения ---")
-        for y, m in month_options[:12]:
-            start = datetime(y, m, 1)
-            end = datetime(y, m, calendar.monthrange(y, m)[1])
-            trx = load_transactions(start, end)
-            exp = load_expenses(start, end)
-            rev = trx["amount"].sum() if trx is not None and not trx.empty else 0
-            exp_sum = exp["amount"].sum() if exp is not None and not exp.empty else 0
-            model_rev = trx.groupby("model")["amount"].sum().to_dict() if trx is not None and not trx.empty and "model" in trx.columns else {}
-            plans = get_plans(y, m)
-            pm = compute_plan_metrics(model_rev, plans) if plans else None
-            net = rev - (pm["total_chatter_cut"] if pm else rev * 0.25) - rev * 0.23 - rev * 0.09 - exp_sum  # упрощённо
-            parts.append(f"{MONTHS_RU.get(m, m)} {y}: выручка ${rev:,.2f}, расходы ${exp_sum:,.2f}, прибыль ~${net:,.2f}")
+        for line in _get_month_comparison_parts(_month_options_tuple):
+            parts.append(line)
         parts.append("")
 
     return "\n".join(parts)
