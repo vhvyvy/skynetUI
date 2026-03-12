@@ -142,6 +142,7 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
     with col_load2:
         api_cfg = get_api_config()
         if api_cfg.get("url") and api_cfg.get("api_key"):
+            st.caption("API Onlymonster подключён")
             if st.button("Синхронизировать через API", key="kpi_sync_api_btn"):
                 if selected_year and selected_month:
                     start = datetime(selected_year, selected_month, 1)
@@ -159,6 +160,11 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
                                 st.rerun()
                         except Exception as e:
                             st.error(f"Ошибка: {e}")
+        else:
+            st.warning(
+                "Добавьте **ONLYMONSTER_API_KEY** и **ONLYMONSTER_API_URL** в Railway Variables, "
+                "чтобы появилась кнопка синхронизации."
+            )
 
     missing = kpi[kpi["PPV Open Rate %"].isna() & (kpi["Выручка"] > 0)]["chatter"].tolist()
     unmapped = get_unmapped_user_ids(selected_year or 2025, selected_month or 1) if selected_year and selected_month else []
