@@ -1,8 +1,11 @@
 """
-KPI админов — по сменам. 3 админа = 3 смены.
+KPI админов — по сменам. 3 админа = 3 смены (клиент: 2 админа).
 Метрики: выручка, транзакции, чаттеры, модели, KPI чаттеров смены, выполнение плана.
 """
+import os
 import streamlit as st
+
+IS_CLIENT = (os.getenv("CLIENT_MODE") or os.getenv("SKYNET_CLIENT") or "").lower().strip() in ("1", "true", "yes", "on")
 import pandas as pd
 import plotly.express as px
 
@@ -48,8 +51,8 @@ def render(transactions_df, metrics, plan_metrics=None, selected_year=None, sele
         )
         .reset_index()
     )
-    n_admins = len(by_shift)  # по одной смене = один админ
-    admin_pct_each = admin_pct_total / max(n_admins, 1)  # каждый админ: 3% от тотала (при 9%/3)
+    n_admins = 2 if IS_CLIENT else len(by_shift)  # клиент: 2 админа (9%/2=4.5%), иначе по сменам
+    admin_pct_each = admin_pct_total / max(n_admins, 1)  # каждый админ: 4.5% при 2-х, 3% при 3-х
     by_shift["Средний чек"] = (by_shift["Выручка"] / by_shift["Транзакций"]).round(2)
     by_shift["Расчётная оплата"] = (total_revenue * admin_pct_each).round(2)  # каждый = % от тотала агентства
     by_shift["Доля %"] = (by_shift["Выручка"] / total_revenue * 100).round(1) if total_revenue > 0 else 0
