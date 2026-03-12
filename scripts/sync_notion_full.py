@@ -270,6 +270,8 @@ def parse_transaction_row(row, shift_type="relation"):
     model_prop = props.get("Модель") or props.get("модель") or props.get("Model") or props.get("model")
     model_rel = (model_prop or {}).get("relation", []) if isinstance(model_prop, dict) else []
     model_name = get_page_title(model_rel[0]["id"], model_cache) if model_rel else None
+    if not model_name and model_rel:
+        model_name = "—"  # fallback если нет доступа к связанной странице
 
     chatter = None
     cp = props.get("Чаттер") or props.get("Chatter") or props.get("чаттер") or {}
