@@ -49,7 +49,14 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
     kpi_data = get_kpi(selected_year or 2025, selected_month or 1) if selected_year and selected_month else {}
 
     def _metrics_for_chatter(c):
-        uid = name_to_id.get(str(c).strip())
+        s = str(c).strip()
+        uid = name_to_id.get(s)
+        if not uid:
+            # Fallback: match by prefix (e.g. "@JI9JI9 Анна" → "@JI9JI9")
+            for name, nid in name_to_id.items():
+                if s.startswith(str(name)) or str(name).startswith(s):
+                    uid = nid
+                    break
         if uid:
             return kpi_by_id.get(uid, {})
         return kpi_data.get(c, {})
