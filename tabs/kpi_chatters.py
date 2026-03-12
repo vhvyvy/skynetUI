@@ -52,14 +52,22 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
         s = str(c).strip()
         uid = name_to_id.get(s)
         if not uid:
-            # Fallback: match by prefix (e.g. "@JI9JI9 Анна" → "@JI9JI9")
             for name, nid in name_to_id.items():
                 if s.startswith(str(name)) or str(name).startswith(s):
                     uid = nid
                     break
         if uid:
-            return kpi_by_id.get(uid, {})
-        return kpi_data.get(c, {})
+            m = kpi_by_id.get(uid, {})
+            if m:
+                return m
+        # Fallback: kpi_data uses first alias (e.g. "@J19J19"), transaction has "@J19J19 Андрей"
+        direct = kpi_data.get(s, {})
+        if direct:
+            return direct
+        for k, m in kpi_data.items():
+            if s.startswith(str(k)) or str(k).startswith(s):
+                return m
+        return {}
 
     kpi["PPV Open Rate %"] = kpi["chatter"].map(lambda c: _metrics_for_chatter(c).get("ppv_open_rate"))
     kpi["APV"] = kpi["chatter"].map(lambda c: _metrics_for_chatter(c).get("apv"))
