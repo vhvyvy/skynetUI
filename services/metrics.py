@@ -78,6 +78,11 @@ def calculate_metrics(
     )
 
     return {
+        # Проценты (для AI контекста и отображения)
+        "model_percent": model_percent,
+        "chatter_percent": chatter_percent,
+        "admin_percent": admin_percent,
+        "withdraw_percent": withdraw_percent,
         # Старые ключи (для overview)
         "revenue": total_revenue,
         "expenses": total_expenses,

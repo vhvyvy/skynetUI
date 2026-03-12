@@ -46,5 +46,9 @@ def delete_event(date: str, description: str) -> None:
 
 
 def get_events_for_context(selected_year: int = None, selected_month: int = None) -> list:
-    """Возвращает все события для контекста AI (отсортированные по дате)."""
-    return get_all_events()
+    """События для контекста AI. Если задан year/month — только события этого месяца."""
+    all_events = get_all_events()
+    if selected_year is None or selected_month is None:
+        return all_events
+    prefix = f"{selected_year}-{selected_month:02d}"
+    return [e for e in all_events if str(e.get("date", ""))[:7] == prefix]

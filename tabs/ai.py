@@ -4,7 +4,7 @@
 import streamlit as st
 
 from services.ai_analysis import build_full_context
-from services.ai_service import chat_with_context
+from services.ai_service import chat_with_context_stream
 from tabs.kpi_chatters import _build_kpi_df
 
 
@@ -71,6 +71,7 @@ def render(
 
     need_context = "ai_quick_prompt" in st.session_state
     user_input = None
+    context = ""
 
     st.divider()
     st.subheader("Чат")
@@ -104,15 +105,19 @@ def render(
     if "ai_quick_prompt" in st.session_state:
         prompt = st.session_state.pop("ai_quick_prompt")
         st.session_state.ai_messages.append({"role": "user", "content": prompt})
-        with st.spinner("Анализирую…"):
-            reply = chat_with_context(context, prompt, messages_history=st.session_state.ai_messages[:-1])
+        with st.chat_message("assistant"):
+            reply = st.write_stream(
+                chat_with_context_stream(context, prompt, messages_history=st.session_state.ai_messages[:-1])
+            )
         st.session_state.ai_messages.append({"role": "assistant", "content": reply})
         st.rerun()
 
     if user_input:
         st.session_state.ai_messages.append({"role": "user", "content": user_input})
-        with st.spinner("Думаю…"):
-            reply = chat_with_context(context, user_input, messages_history=st.session_state.ai_messages[:-1])
+        with st.chat_message("assistant"):
+            reply = st.write_stream(
+                chat_with_context_stream(context, user_input, messages_history=st.session_state.ai_messages[:-1])
+            )
         st.session_state.ai_messages.append({"role": "assistant", "content": reply})
         st.rerun()
 

@@ -5,6 +5,8 @@ KPI чаттеров: PPV Open Rate, APV, Total Chats.
 import json
 import os
 
+import streamlit as st
+
 from services.db import get_connection
 
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chatter_id_to_name.json")
@@ -63,6 +65,7 @@ def get_name_to_chatter_id_reverse_mapping():
     return reverse
 
 
+@st.cache_data(ttl=120)
 def _load_kpi_from_db(year, month):
     """Загружает KPI из БД. Возвращает dict {chatter: {ppv_open_rate, apv, total_chats, model, source}}."""
     _ensure_chatter_kpi_table()

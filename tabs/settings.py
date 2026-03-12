@@ -43,8 +43,9 @@ def render(transactions_df, expenses_df, metrics):
         )
 
     st.session_state.use_withdraw = st.toggle(
-        "Учитывать удержание",
-        value=st.session_state.use_withdraw
+        "Учитывать комиссию вывода",
+        value=st.session_state.use_withdraw,
+        help="6% от выручки — комиссия на вывод средств"
     )
 
     if not IS_CLIENT:

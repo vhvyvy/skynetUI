@@ -123,8 +123,13 @@ end_date = datetime(selected_year, selected_month, last_day)
 # ЗАГРУЗКА ДАННЫХ
 # ==================================================
 
-transactions_df = load_transactions(start_date, end_date)
-expenses_df = load_expenses(start_date, end_date)
+try:
+    with st.spinner("Загрузка данных…"):
+        transactions_df = load_transactions(start_date, end_date)
+        expenses_df = load_expenses(start_date, end_date)
+except Exception as e:
+    st.error(f"Ошибка загрузки данных: {e}")
+    st.stop()
 
 # Планы по моделям (влияют на % чаттера)
 model_revenues = (
