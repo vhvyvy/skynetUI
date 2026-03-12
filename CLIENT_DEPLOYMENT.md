@@ -101,7 +101,7 @@ account_ids = "ID1, ID2, ID3"   # опционально: только эти а
 - [ ] Onlymonster: `api_key` клиента, при необходимости `account_ids`
 - [ ] OpenAI: ключ (если нужна AI-вкладка)
 - [ ] Хостинг: Railway/Render — переменные заданы
-- [ ] GitHub Actions: `NOTION_TOKEN`, `PG_*` для авто-синка
+- [ ] GitHub Actions: `NOTION_TOKEN`, `PG_*`, `ONLYMONSTER_API_KEY_CLIENT`, `ONLYMONSTER_API_URL_CLIENT` для авто-синка
 - [ ] Домен/ссылка: передать клиенту
 
 ---

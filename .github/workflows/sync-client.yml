@@ -42,3 +42,14 @@ jobs:
           PG_USER: ${{ secrets.PG_USER_CLIENT }}
           PG_PASSWORD: ${{ secrets.PG_PASSWORD_CLIENT }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN_CLIENT }}
+      - name: Sync KPI from Onlymonster API
+        run: python scripts/sync_kpi_api.py
+        env:
+          PG_HOST: ${{ secrets.PG_HOST_CLIENT }}
+          PG_PORT: ${{ secrets.PG_PORT_CLIENT }}
+          PG_DB: ${{ secrets.PG_DB_CLIENT }}
+          PG_USER: ${{ secrets.PG_USER_CLIENT }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD_CLIENT }}
+          ONLYMONSTER_API_KEY: ${{ secrets.ONLYMONSTER_API_KEY_CLIENT }}
+          ONLYMONSTER_API_URL: ${{ secrets.ONLYMONSTER_API_URL_CLIENT }}
+        continue-on-error: true
