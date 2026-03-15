@@ -47,12 +47,12 @@ LOGIN_HTML = """<!DOCTYPE html>
   <div class="card">
     <h1>🔐 Вход в панель</h1>
     <p class="hint">Введите пароль. Сессия сохранится на 7 дней.</p>
-    <p class="hint" style="font-size:0.8rem;color:#94a3b8;">Если ссылка с <code>:8080</code> не открывается — открой без порта (например https://твой-домен.up.railway.app)</p>
     <form method="post" action="/login">
       <input type="password" name="password" placeholder="Пароль" required autofocus>
       <button type="submit">Войти</button>
     </form>
     <p class="err">{{ error }}</p>
+    <p style="margin-top:1rem; font-size:0.875rem;"><a href="/logout" style="color:#94a3b8;">Выход</a></p>
   </div>
 </body>
 </html>"""
