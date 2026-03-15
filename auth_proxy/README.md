@@ -6,7 +6,7 @@
 
 В репозитории есть **Dockerfile**: nginx проверяет cookie через `auth_request`, проксирует всё (включая WebSocket) в Streamlit. Сервис входа только отдаёт форму и `/auth/verify`.
 
-**Railway:** подключи репо, включи деплой из Dockerfile (по умолчанию подхватится). В Variables задай `APP_PASSWORD`, при HTTPS — `AUTH_PROXY_SECURE=true`, плюс БД/Notion и т.д. Команду Start не переопределяй — в образе уже прописан запуск nginx + auth + Streamlit.
+**Railway:** подключи репо, включи деплой из Dockerfile. В Variables задай `APP_PASSWORD`, при HTTPS — `AUTH_PROXY_SECURE=true`, плюс БД/Notion и т.д. Открывай сайт **по ссылке без порта** (например `https://твой-сервис.up.railway.app`) — ссылка с `:8080` снаружи не открывается (таймаут). Закладки и шаринг делай на URL без порта.
 
 **Локально:** `docker build -t skynet . && docker run -e APP_PASSWORD=пароль -e PORT=8080 -p 8080:8080 skynet` — открой http://localhost:8080.
 

@@ -38,9 +38,16 @@ LOGIN_HTML = """<!DOCTYPE html>
   </style>
 </head>
 <body>
+  <script>
+    if (window.location.port === "8080") {
+      var u = window.location.protocol + "//" + window.location.hostname + window.location.pathname + window.location.search;
+      window.location.replace(u);
+    }
+  </script>
   <div class="card">
     <h1>🔐 Вход в панель</h1>
     <p class="hint">Введите пароль. Сессия сохранится на 7 дней.</p>
+    <p class="hint" style="font-size:0.8rem;color:#94a3b8;">Если ссылка с <code>:8080</code> не открывается — открой без порта (например https://твой-домен.up.railway.app)</p>
     <form method="post" action="/login">
       <input type="password" name="password" placeholder="Пароль" required autofocus>
       <button type="submit">Войти</button>
