@@ -79,8 +79,16 @@ def _check_auth_token(token):
         return False
 
 
-# Когда вход идёт через auth_proxy (Railway и т.д.), форму входа в Streamlit не показываем
+# Когда вход через nginx (Docker): проверяем заголовок — без nginx дашборд не показываем
 _AUTH_PROXY = (_os.getenv("AUTH_PROXY") or "").strip().lower() in ("1", "true", "yes")
+if _AUTH_PROXY:
+    _ctx = getattr(st, "context", None)
+    _headers = getattr(_ctx, "headers", None) if _ctx else None
+    _via_nginx = _headers and (_headers.get("X-Auth-Via-Nginx") or _headers.get("x-auth-via-nginx"))
+    if not _via_nginx:
+        st.error("Доступ только через вход. Задеплой с **Dockerfile** (nginx + форма входа). В Railway не используй Start без Docker.")
+        st.info("В Variables задай **APP_PASSWORD**. Пересобери сервис из Dockerfile — тогда при открытии сайта будет форма входа.")
+        st.stop()
 if _ADMIN_PASSWORD and not _AUTH_PROXY:
     if "auth_cookies" not in st.session_state:
         try:
