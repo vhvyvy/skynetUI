@@ -229,7 +229,10 @@ st.session_state.use_plans = st.sidebar.toggle(
     help="% чаттера зависит от выполнения плана (50%→20%, 100%→25%)"
 )
 
-if _ADMIN_PASSWORD and not _AUTH_PROXY:
+if _AUTH_PROXY:
+    st.sidebar.divider()
+    st.sidebar.markdown('[**Выход**](/logout)')
+elif _ADMIN_PASSWORD and not _AUTH_PROXY:
     st.sidebar.divider()
     if st.query_params.get("auth"):
         st.sidebar.caption("⚠️ Не передавай ссылку из адресной строки другим — в ней сохранён твой вход.")
