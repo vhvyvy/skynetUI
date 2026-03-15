@@ -34,14 +34,11 @@ cd skynetUI-client
 
 1. [railway.app](https://railway.app) → Start a New Project
 2. **Deploy from GitHub** → выбери репо
-3. **Variables** добавь (см. шаблон ниже)
-4. **Settings** → Build: `pip install -r requirements.txt`, Start: `python run_streamlit_port.py` (порт берётся из переменной PORT)
+3. **Variables** добавь: `APP_PASSWORD`, при HTTPS — `AUTH_PROXY_SECURE=true`, плюс БД, Notion и т.д. (см. шаблон ниже)
+4. Оставь деплой из **Dockerfile** (Railway подхватит его сам): в образе уже nginx + сервис входа + Streamlit. Cookie на 7 дней, WebSocket через nginx — дашборд грузится нормально.
 5. Платный план — быстрый инстанс
 
-**Вход по паролю и cookie (рекомендуется):** чтобы не светить дашборд без входа и запоминать сессию на 7 дней, используй прокси из папки `auth_proxy`. В Railway:
-- **Build:** `pip install -r requirements.txt && pip install -r auth_proxy/requirements.txt`
-- **Start:** `python auth_proxy/run_with_streamlit.py`
-- **Variables:** `APP_PASSWORD` (пароль входа), `AUTH_PROXY=1` (чтобы Streamlit не показывал свою форму входа), при HTTPS — `AUTH_PROXY_SECURE=true`. Остальные переменные (БД, Notion и т.д.) — как обычно.
+**Без Docker (если отключишь Dockerfile):** Build: `pip install -r requirements.txt`, Start: `python run_streamlit_port.py`. Тогда вход только по форме в Streamlit (без cookie, сессия может сбрасываться).
 
 Подробнее: [auth_proxy/README.md](auth_proxy/README.md).
 
