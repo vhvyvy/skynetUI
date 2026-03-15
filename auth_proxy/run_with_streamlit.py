@@ -30,9 +30,21 @@ def main():
     ]
     proc = subprocess.Popen(streamlit_cmd, cwd=root, env=os.environ)
     try:
-        time.sleep(2)
-        if proc.poll() is not None:
-            print("Streamlit failed to start")
+        # Ждём, пока Streamlit ответит на health (на Railway может быть медленный старт)
+        streamlit_base = f"http://127.0.0.1:{streamlit_port}"
+        for _ in range(30):
+            if proc.poll() is not None:
+                print("Streamlit process exited")
+                sys.exit(1)
+            try:
+                import urllib.request
+                urllib.request.urlopen(streamlit_base + "/_stcore/health", timeout=2)
+                break
+            except Exception:
+                time.sleep(1)
+        else:
+            print("Streamlit did not become ready in time")
+            proc.terminate()
             sys.exit(1)
         # Запуск прокси (блокирующий)
         sys.path.insert(0, os.path.dirname(__file__))

@@ -191,13 +191,15 @@ def _get_cookie_from_scope(scope: dict) -> str | None:
 @app.websocket("/_stcore/stream")
 async def streamlit_websocket(websocket: WebSocket):
     # Не проверяем cookie здесь: браузер часто не шлёт cookie с WebSocket handshake в прокси.
-    # Доступ уже защищён проверкой на GET / — без входа пользователь не получит HTML дашборда.
     await websocket.accept()
     q = str(websocket.scope.get("query_string", "") or "")
     ws_url = STREAMLIT_URL.replace("http://", "ws://").replace("https://", "wss://").rstrip("/") + "/_stcore/stream" + ("?" + q if q else "")
+    # Host для бэкенда — иначе Streamlit может не принять соединение
+    from urllib.parse import urlparse
+    netloc = urlparse(STREAMLIT_URL).netloc or "127.0.0.1:8501"
     try:
         import websockets
-        async with websockets.connect(ws_url) as backend:
+        async with websockets.connect(ws_url, extra_headers={"Host": netloc}, close_timeout=2, open_timeout=15) as backend:
             async def from_backend():
                 try:
                     while True:
