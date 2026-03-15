@@ -172,23 +172,30 @@ async def proxy_request(request: Request, path: str) -> Response:
 def _get_cookie_from_scope(scope: dict) -> str | None:
     """Читаем cookie из заголовков (для WebSocket Cookie() иногда не подставляется)."""
     headers = scope.get("headers") or []
+    cookie_parts = []
     for k, v in headers:
         if k.lower() == b"cookie":
-            cookie_str = v.decode("latin-1")
-            for part in cookie_str.split(";"):
-                part = part.strip()
-                if part.startswith(COOKIE_NAME + "="):
-                    return part.split("=", 1)[1].strip()
+            cookie_parts.append(v.decode("latin-1"))
+    if not cookie_parts:
+        return None
+    cookie_str = "; ".join(cookie_parts)
+    prefix = COOKIE_NAME + "="
+    for part in cookie_str.split(";"):
+        part = part.strip()
+        if part.startswith(prefix):
+            # значение — всё после первого "=", чтобы не обрезать токен с "=" внутри
+            return part[len(prefix):].strip()
     return None
 
 
 @app.websocket("/_stcore/stream")
 async def streamlit_websocket(websocket: WebSocket, session: str | None = Cookie(None, alias=COOKIE_NAME)):
+    # Сначала accept(), иначе ASGI ругается "returned without sending handshake"
+    await websocket.accept()
     token = session or _get_cookie_from_scope(websocket.scope)
     if APP_PASSWORD and (not token or not check_token(token)):
-        # Не вызываем accept() — соединение отклоняется (403)
+        await websocket.close(code=4001)
         return
-    await websocket.accept()
     q = str(websocket.scope.get("query_string", "") or "")
     ws_url = STREAMLIT_URL.replace("http://", "ws://").replace("https://", "wss://").rstrip("/") + "/_stcore/stream" + ("?" + q if q else "")
     try:
