@@ -91,11 +91,7 @@ if _ADMIN_PASSWORD:
             st.session_state.auth_cookies = None
     _cookies = st.session_state.get("auth_cookies")
     if not st.session_state.get("auth_ok"):
-        if _cookies is not None:
-            if not _cookies.ready():
-                st.title("🔐 Вход в панель")
-                st.caption("Загрузка…")
-                st.stop()
+        if _cookies is not None and _cookies.ready():
             auth_cookie = _cookies.get("auth")
             if auth_cookie and _check_auth_token(str(auth_cookie)):
                 st.session_state["auth_ok"] = True
