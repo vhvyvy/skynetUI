@@ -38,7 +38,12 @@ cd skynetUI-client
 4. **Settings** → Build: `pip install -r requirements.txt`, Start: `streamlit run app.py --server.port $PORT`
 5. Платный план — быстрый инстанс
 
-**Вход по паролю и cookie (рекомендуется):** чтобы не светить дашборд без входа и запоминать сессию на 7 дней, используй прокси из папки `auth_proxy`. В Railway: Build как обычно (`pip install -r requirements.txt`), дополнительно установи зависимости прокси: `pip install -r auth_proxy/requirements.txt`. Start: `python auth_proxy/run_with_streamlit.py`. Переменные: `APP_PASSWORD`, при HTTPS — `AUTH_PROXY_SECURE=true`. Подробнее: [auth_proxy/README.md](auth_proxy/README.md).
+**Вход по паролю и cookie (рекомендуется):** чтобы не светить дашборд без входа и запоминать сессию на 7 дней, используй прокси из папки `auth_proxy`. В Railway:
+- **Build:** `pip install -r requirements.txt && pip install -r auth_proxy/requirements.txt`
+- **Start:** `python auth_proxy/run_with_streamlit.py`
+- **Variables:** `APP_PASSWORD` (пароль входа), `AUTH_PROXY=1` (чтобы Streamlit не показывал свою форму входа), при HTTPS — `AUTH_PROXY_SECURE=true`. Остальные переменные (БД, Notion и т.д.) — как обычно.
+
+Подробнее: [auth_proxy/README.md](auth_proxy/README.md).
 
 ### Render
 

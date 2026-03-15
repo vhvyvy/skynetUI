@@ -79,7 +79,9 @@ def _check_auth_token(token):
         return False
 
 
-if _ADMIN_PASSWORD:
+# Когда вход идёт через auth_proxy (Railway и т.д.), форму входа в Streamlit не показываем
+_AUTH_PROXY = (_os.getenv("AUTH_PROXY") or "").strip().lower() in ("1", "true", "yes")
+if _ADMIN_PASSWORD and not _AUTH_PROXY:
     if "auth_cookies" not in st.session_state:
         try:
             from streamlit_cookies_manager import EncryptedCookieManager
@@ -219,7 +221,7 @@ st.session_state.use_plans = st.sidebar.toggle(
     help="% чаттера зависит от выполнения плана (50%→20%, 100%→25%)"
 )
 
-if _ADMIN_PASSWORD:
+if _ADMIN_PASSWORD and not _AUTH_PROXY:
     st.sidebar.divider()
     if st.query_params.get("auth"):
         st.sidebar.caption("⚠️ Не передавай ссылку из адресной строки другим — в ней сохранён твой вход.")
