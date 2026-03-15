@@ -91,11 +91,23 @@ if _ADMIN_PASSWORD:
             st.session_state.auth_cookies = None
     _cookies = st.session_state.get("auth_cookies")
     if not st.session_state.get("auth_ok"):
-        if _cookies is not None and _cookies.ready():
-            auth_cookie = _cookies.get("auth")
-            if auth_cookie and _check_auth_token(str(auth_cookie)):
-                st.session_state["auth_ok"] = True
-                st.rerun()
+        # 1) Проверяем токен в URL (после входа он там есть — так переживаем обновление страницы)
+        q = st.query_params
+        auth_q = q.get("auth")
+        if isinstance(auth_q, list):
+            auth_q = auth_q[0] if auth_q else None
+        if auth_q and _check_auth_token(auth_q):
+            st.session_state["auth_ok"] = True
+            st.rerun()
+        # 2) Проверяем cookie (если компонент успел отдать данные)
+        if _cookies is not None:
+            try:
+                auth_cookie = _cookies.get("auth")
+                if auth_cookie and _check_auth_token(str(auth_cookie)):
+                    st.session_state["auth_ok"] = True
+                    st.rerun()
+            except Exception:
+                pass
         st.title("🔐 Вход в панель")
         st.caption("Введите пароль для доступа к дашборду. Приложение запомнит тебя на 7 дней.")
         pwd = st.text_input("Пароль", type="password", key="auth_pwd", label_visibility="collapsed", placeholder="Пароль")
@@ -103,17 +115,26 @@ if _ADMIN_PASSWORD:
         with col1:
             if st.button("Войти", type="primary", key="auth_btn"):
                 if (pwd or "") == _ADMIN_PASSWORD:
-                    if _cookies is not None and _cookies.ready():
+                    token = _make_auth_token()
+                    if _cookies is not None:
                         try:
-                            token = _make_auth_token()
-                            _cookies["auth"] = token
-                            _cookies.save()
+                            if _cookies.ready():
+                                _cookies["auth"] = token
+                                _cookies.save()
                         except Exception:
                             pass
+                    try:
+                        st.query_params["auth"] = token  # чтобы после обновления страницы вход сохранялся
+                    except Exception:
+                        pass
                     st.session_state["auth_ok"] = True
                     st.rerun()
                 else:
                     st.error("Неверный пароль")
+        if _cookies is not None:
+            st.caption("Если ты уже входил — нажми «Проверить снова», возможно сессия подтянется.")
+            if st.button("Проверить снова", key="auth_retry"):
+                st.rerun()
         st.stop()
 
 # ==================================================
@@ -200,6 +221,8 @@ st.session_state.use_plans = st.sidebar.toggle(
 
 if _ADMIN_PASSWORD:
     st.sidebar.divider()
+    if st.query_params.get("auth"):
+        st.sidebar.caption("⚠️ Не передавай ссылку из адресной строки другим — в ней сохранён твой вход.")
     if st.sidebar.button("Выйти", key="auth_logout"):
         if "auth_ok" in st.session_state:
             del st.session_state["auth_ok"]
