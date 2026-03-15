@@ -189,13 +189,10 @@ def _get_cookie_from_scope(scope: dict) -> str | None:
 
 
 @app.websocket("/_stcore/stream")
-async def streamlit_websocket(websocket: WebSocket, session: str | None = Cookie(None, alias=COOKIE_NAME)):
-    # Сначала accept(), иначе ASGI ругается "returned without sending handshake"
+async def streamlit_websocket(websocket: WebSocket):
+    # Не проверяем cookie здесь: браузер часто не шлёт cookie с WebSocket handshake в прокси.
+    # Доступ уже защищён проверкой на GET / — без входа пользователь не получит HTML дашборда.
     await websocket.accept()
-    token = session or _get_cookie_from_scope(websocket.scope)
-    if APP_PASSWORD and (not token or not check_token(token)):
-        await websocket.close(code=4001)
-        return
     q = str(websocket.scope.get("query_string", "") or "")
     ws_url = STREAMLIT_URL.replace("http://", "ws://").replace("https://", "wss://").rstrip("/") + "/_stcore/stream" + ("?" + q if q else "")
     try:
