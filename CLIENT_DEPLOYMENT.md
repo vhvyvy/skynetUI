@@ -35,7 +35,7 @@ cd skynetUI-client
 1. [railway.app](https://railway.app) → Start a New Project
 2. **Deploy from GitHub** → выбери репо
 3. **Variables** добавь (см. шаблон ниже)
-4. **Settings** → Build: `pip install -r requirements.txt`, Start: `streamlit run app.py --server.port $PORT`
+4. **Settings** → Build: `pip install -r requirements.txt`, Start: `python run_streamlit_port.py` (порт берётся из переменной PORT)
 5. Платный план — быстрый инстанс
 
 **Вход по паролю и cookie (рекомендуется):** чтобы не светить дашборд без входа и запоминать сессию на 7 дней, используй прокси из папки `auth_proxy`. В Railway:
