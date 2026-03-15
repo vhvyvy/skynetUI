@@ -1,7 +1,11 @@
 import streamlit as st
 from datetime import datetime
 import calendar
+import base64
+import hmac
+import hashlib
 import os as _os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,6 +45,77 @@ style_metric_cards(
     border_left_color="#00d4aa",
     box_shadow=True,
 )
+
+# ==================================================
+# ЗАЩИТА ПАРОЛЕМ (опционально)
+# Задай APP_PASSWORD или ADMIN_PASSWORD в env / Railway Variables — приложение запросит пароль.
+# После входа запоминает тебя в cookie на 7 дней (открываешь с того же браузера — уже вошёл).
+# ==================================================
+_AUTH_TOKEN_DAYS = 7
+_ADMIN_PASSWORD = (_os.getenv("APP_PASSWORD") or _os.getenv("ADMIN_PASSWORD") or "").strip()
+
+
+def _make_auth_token():
+    expiry = int(time.time()) + _AUTH_TOKEN_DAYS * 24 * 3600
+    sig = hmac.new(_ADMIN_PASSWORD.encode(), str(expiry).encode(), hashlib.sha256).digest()
+    b64 = base64.urlsafe_b64encode(sig).decode().rstrip("=")
+    return f"{b64}.{expiry}"
+
+
+def _check_auth_token(token):
+    if not token or "." not in token:
+        return False
+    parts = token.split(".", 1)
+    try:
+        expiry = int(parts[1])
+        if expiry <= time.time():
+            return False
+        raw = parts[0]
+        pad = (4 - len(raw) % 4) % 4
+        sig = base64.urlsafe_b64decode(raw + "=" * pad)
+        expected = hmac.new(_ADMIN_PASSWORD.encode(), str(expiry).encode(), hashlib.sha256).digest()
+        return hmac.compare_digest(sig, expected)
+    except Exception:
+        return False
+
+
+if _ADMIN_PASSWORD:
+    if "auth_cookies" not in st.session_state:
+        try:
+            from streamlit_cookies_manager import EncryptedCookieManager
+            st.session_state.auth_cookies = EncryptedCookieManager(
+                prefix="skynet_auth/",
+                password=_ADMIN_PASSWORD,
+            )
+        except Exception:
+            st.session_state.auth_cookies = None
+    _cookies = st.session_state.get("auth_cookies")
+    if not st.session_state.get("auth_ok"):
+        if _cookies is not None:
+            if not _cookies.ready():
+                st.title("🔐 Вход в панель")
+                st.caption("Загрузка…")
+                st.stop()
+            auth_cookie = _cookies.get("auth")
+            if auth_cookie and _check_auth_token(str(auth_cookie)):
+                st.session_state["auth_ok"] = True
+                st.rerun()
+        st.title("🔐 Вход в панель")
+        st.caption("Введите пароль для доступа к дашборду. Приложение запомнит тебя на 7 дней.")
+        pwd = st.text_input("Пароль", type="password", key="auth_pwd", label_visibility="collapsed", placeholder="Пароль")
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            if st.button("Войти", type="primary", key="auth_btn"):
+                if (pwd or "") == _ADMIN_PASSWORD:
+                    if _cookies is not None:
+                        token = _make_auth_token()
+                        _cookies["auth"] = token
+                        _cookies.save()
+                    st.session_state["auth_ok"] = True
+                    st.rerun()
+                else:
+                    st.error("Неверный пароль")
+        st.stop()
 
 # ==================================================
 # ДЕФОЛТНЫЕ ПРОЦЕНТЫ (инициализация)
@@ -123,6 +198,20 @@ st.session_state.use_plans = st.sidebar.toggle(
     value=st.session_state.get("use_plans", True),
     help="% чаттера зависит от выполнения плана (50%→20%, 100%→25%)"
 )
+
+if _ADMIN_PASSWORD:
+    st.sidebar.divider()
+    if st.sidebar.button("Выйти", key="auth_logout"):
+        if "auth_ok" in st.session_state:
+            del st.session_state["auth_ok"]
+        _c = st.session_state.get("auth_cookies")
+        if _c is not None:
+            try:
+                _c["auth"] = ""
+                _c.save()
+            except Exception:
+                pass
+        st.rerun()
 
 index = labels.index(selected_label)
 selected_year, selected_month = month_options[index]
