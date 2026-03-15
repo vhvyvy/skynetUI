@@ -231,7 +231,7 @@ st.session_state.use_plans = st.sidebar.toggle(
 
 if _AUTH_PROXY:
     st.sidebar.divider()
-    st.sidebar.markdown('[**Выход**](/logout)')
+    st.sidebar.markdown('<a href="/logout" target="_self" style="color:#94a3b8;">Выход</a>', unsafe_allow_html=True)
 elif _ADMIN_PASSWORD and not _AUTH_PROXY:
     st.sidebar.divider()
     if st.query_params.get("auth"):
