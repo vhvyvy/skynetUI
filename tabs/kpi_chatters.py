@@ -8,8 +8,9 @@ import plotly.graph_objects as go
 import calendar
 from datetime import datetime
 
-from services.chatter_kpi import get_kpi, get_kpi_for_merge, get_unmapped_user_ids, save_kpi_batch
+from services.chatter_kpi import get_kpi, get_kpi_for_merge, get_chatter_id_to_name_mapping, get_unmapped_user_ids, save_kpi_batch
 from services.onlymonster import fetch_chatter_metrics, parse_kpi_csv, get_api_config
+from services.db import get_chatter_onlymonster_mapping, save_chatter_onlymonster_mapping, delete_chatter_onlymonster_mapping
 
 
 def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selected_month):
@@ -180,6 +181,52 @@ def render(transactions_df, expenses_df, metrics, plan_metrics=None, selected_ye
                 "Добавьте **ONLYMONSTER_API_KEY** и **ONLYMONSTER_API_URL** в Railway Variables, "
                 "чтобы появилась кнопка синхронизации."
             )
+
+    # ---------- Маппинг чаттер ↔ Onlymonster ID ----------
+    with st.expander("🔗 Маппинг чаттер ↔ Onlymonster ID", expanded=bool(get_unmapped_user_ids(selected_year or 2025, selected_month or 1) if (selected_year and selected_month) else False)):
+        st.caption("Связь user_id из Onlymonster API с отображаемым именем чаттера. Добавьте маппинг для новых чаттеров, чтобы в таблице KPI отображались метрики.")
+        unmapped = get_unmapped_user_ids(selected_year or 2025, selected_month or 1) if (selected_year and selected_month) else []
+        if unmapped:
+            st.info(f"User_id без маппинга: **{', '.join(str(u) for u in unmapped[:10])}{'…' if len(unmapped) > 10 else ''}** — добавьте их ниже.")
+        # Список чаттеров из текущей таблицы для выбора
+        chatter_options = kpi["chatter"].dropna().astype(str).str.strip().unique().tolist() if kpi is not None and not kpi.empty and "chatter" in kpi.columns else []
+        full_mapping = get_chatter_id_to_name_mapping()
+        col_a, col_b = st.columns(2)
+        with col_a:
+            onlymonster_id = st.text_input("Onlymonster user_id", key="mapping_onlymonster_id", placeholder="например 21036")
+            display_name = st.text_input("Отображаемое имя (чаттер)", key="mapping_display_name", placeholder="@nick или Имя")
+            display_name_from_select = ""
+            if chatter_options:
+                display_name_from_select = st.selectbox("Или выбрать из списка чаттеров", [""] + chatter_options, key="mapping_select_chatter") or ""
+            if st.button("Добавить маппинг", key="mapping_add_btn"):
+                oid = (onlymonster_id or "").strip()
+                dname = (display_name or "").strip() or display_name_from_select
+                if oid and dname:
+                    existing = get_chatter_onlymonster_mapping().get(oid, [])
+                    if isinstance(existing, list) and dname not in existing:
+                        existing = list(existing) + [dname]
+                    else:
+                        existing = [dname]
+                    save_chatter_onlymonster_mapping(oid, existing)
+                    st.cache_data.clear()
+                    st.toast(f"Маппинг {oid} → {dname} сохранён", icon="✅")
+                    st.rerun()
+                else:
+                    st.warning("Укажите user_id и отображаемое имя.")
+        with col_b:
+            db_mappings = get_chatter_onlymonster_mapping()
+            if db_mappings:
+                st.caption("Сохранённые в приложении маппинги (можно удалить)")
+                for oid, names in list(db_mappings.items())[:20]:
+                    names_str = ", ".join(names) if isinstance(names, list) else str(names)
+                    st.text(f"ID {oid} → {names_str}")
+                    if st.button("Удалить", key=f"del_mapping_{oid}"):
+                        delete_chatter_onlymonster_mapping(oid)
+                        st.cache_data.clear()
+                        st.toast(f"Маппинг {oid} удалён", icon="🗑️")
+                        st.rerun()
+            else:
+                st.caption("Маппинги из файла data/chatter_id_to_name.json используются в расчётах. Здесь — только добавленные вручную (пока нет).")
 
     missing = kpi[kpi["PPV Open Rate %"].isna() & (kpi["Выручка"] > 0)]["chatter"].tolist()
     unmapped = get_unmapped_user_ids(selected_year or 2025, selected_month or 1) if selected_year and selected_month else []

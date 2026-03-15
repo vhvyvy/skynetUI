@@ -7,7 +7,7 @@ import os
 
 import streamlit as st
 
-from services.db import get_connection
+from services.db import get_connection, get_chatter_onlymonster_mapping
 
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chatter_id_to_name.json")
 
@@ -42,15 +42,24 @@ def _ensure_chatter_kpi_table():
 def get_chatter_id_to_name_mapping():
     """
     Маппинг user_id (Onlymonster) → имя или [имена].
-    Файл data/chatter_id_to_name.json (в git).
+    Сначала из файла data/chatter_id_to_name.json, затем из БД (БД перезаписывает по ключу).
     """
-    if not os.path.exists(MAPPING_FILE):
-        return {}
+    result = {}
+    if os.path.exists(MAPPING_FILE):
+        try:
+            with open(MAPPING_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for k, v in (data or {}).items():
+                result[str(k)] = v if isinstance(v, list) else [v]
+        except (json.JSONDecodeError, IOError):
+            pass
     try:
-        with open(MAPPING_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return {}
+        db_map = get_chatter_onlymonster_mapping()
+        for k, v in (db_map or {}).items():
+            result[str(k)] = v if isinstance(v, list) else [v]
+    except Exception:
+        pass
+    return result
 
 
 def get_name_to_chatter_id_reverse_mapping():

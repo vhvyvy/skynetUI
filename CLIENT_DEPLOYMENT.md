@@ -38,6 +38,8 @@ cd skynetUI-client
 4. **Settings** → Build: `pip install -r requirements.txt`, Start: `streamlit run app.py --server.port $PORT`
 5. Платный план — быстрый инстанс
 
+**Вход по паролю и cookie (рекомендуется):** чтобы не светить дашборд без входа и запоминать сессию на 7 дней, используй прокси из папки `auth_proxy`. В Railway: Build как обычно (`pip install -r requirements.txt`), дополнительно установи зависимости прокси: `pip install -r auth_proxy/requirements.txt`. Start: `python auth_proxy/run_with_streamlit.py`. Переменные: `APP_PASSWORD`, при HTTPS — `AUTH_PROXY_SECURE=true`. Подробнее: [auth_proxy/README.md](auth_proxy/README.md).
+
 ### Render
 
 1. [render.com](https://render.com) → New → Web Service
@@ -101,7 +103,7 @@ account_ids = "ID1, ID2, ID3"   # опционально: только эти а
 - [ ] Onlymonster: `api_key` клиента, при необходимости `account_ids`
 - [ ] OpenAI: ключ (если нужна AI-вкладка)
 - [ ] Хостинг: Railway/Render — переменные заданы
-- [ ] GitHub Actions: `NOTION_TOKEN`, `PG_*`, `ONLYMONSTER_API_KEY_CLIENT`, `ONLYMONSTER_API_URL_CLIENT` для авто-синка
+- [ ] GitHub Actions: `PG_*_CLIENT`, `NOTION_TOKEN_CLIENT`, `NOTION_TRANSACTIONS_DATABASE_ID_CLIENT`, `NOTION_EXPENSES_DATABASE_IDS_CLIENT`, `ONLYMONSTER_*_CLIENT` для авто-синка
 - [ ] Домен/ссылка: передать клиенту
 
 ---
@@ -123,10 +125,10 @@ account_ids = "ID1, ID2, ID3"   # опционально: только эти а
 # 1. Репо на GitHub (чистая версия)
 # 2. railway.app → New Project → Deploy from GitHub
 # 3. Variables — см. раздел 7
-# 4. config/notion_sync.json — закоммитить или собирать из env
+# 4. GitHub Secrets для sync-client — см. раздел 8
 ```
 
-Если `config/notion_sync.json` закоммичен с ID баз клиента — всё подхватится. Иначе создай его вручную в репо для клиента.
+**Важно:** Sync-client НЕ использует config/notion_sync.json — только env-переменные из GitHub Secrets. Личный sync использует config. Так они не пересекаются.
 
 ---
 
@@ -146,3 +148,24 @@ account_ids = "ID1, ID2, ID3"   # опционально: только эти а
 | `OPENAI_API_KEY` | Ключ OpenAI для вкладки AI |
 
 **Маппинг Onlymonster ID → ник** (для KPI): `data/chatter_id_to_name.json`. У клиента: 27910→@JI9JI9, 162962→@pukvochko (уже добавлено в репо).
+
+---
+
+## 8. GitHub Actions: Secrets для Sync Client
+
+Чтобы sync-client не пересекался с личным sync, нужны **отдельные** секреты. GitHub → Settings → Secrets and variables → Actions:
+
+| Секрет | Описание |
+|--------|----------|
+| `PG_HOST_CLIENT` | Хост БД клиента (Railway Postgres) |
+| `PG_PORT_CLIENT` | 5432 |
+| `PG_DB_CLIENT` | Имя БД клиента |
+| `PG_USER_CLIENT` | Пользователь |
+| `PG_PASSWORD_CLIENT` | Пароль |
+| `NOTION_TOKEN_CLIENT` | Токен Notion интеграции **клиента** |
+| `NOTION_TRANSACTIONS_DATABASE_ID_CLIENT` | ID базы транзакций в Notion **клиента** |
+| `NOTION_EXPENSES_DATABASE_IDS_CLIENT` | ID баз расходов (через запятую) **клиента** |
+| `ONLYMONSTER_API_KEY_CLIENT` | Токен Onlymonster клиента |
+| `ONLYMONSTER_API_URL_CLIENT` | `https://omapi.onlymonster.ai` |
+
+**Личный sync** использует `PG_HOST`, `NOTION_TOKEN` и `config/notion_sync.json` — это твои данные. Они не пересекаются.

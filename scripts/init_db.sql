@@ -58,3 +58,15 @@ CREATE TABLE IF NOT EXISTS chatter_kpi (
   source TEXT DEFAULT 'manual',
   PRIMARY KEY (year, month, chatter)
 );
+
+-- Настройки приложения (проценты, флаги) — сохраняются между сессиями
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Маппинг Onlymonster user_id → отображаемое имя (чаттер). Редактируется в UI.
+CREATE TABLE IF NOT EXISTS chatter_onlymonster_mapping (
+  onlymonster_id TEXT PRIMARY KEY,
+  display_names TEXT NOT NULL
+);
