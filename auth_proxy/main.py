@@ -233,6 +233,11 @@ async def proxy(path: str, request: Request, response: Response, session: str | 
         return await proxy_request(request, path)
     if path.strip("/") in ("login", "logout", "auth"):
         return await proxy_request(request, path)
+    # Служебные запросы Streamlit (host-config, health и т.д.) — без проверки cookie,
+    # иначе 302 ломает инициализацию и дашборд не грузится
+    path_normalized = path.strip("/")
+    if path_normalized.startswith("_stcore/") and "_stcore/stream" not in path_normalized:
+        return await proxy_request(request, path)
     if not session or not check_token(session):
         return RedirectResponse(url="/login", status_code=302)
     return await proxy_request(request, path)
