@@ -4,6 +4,7 @@
 Пользователь заходит на 8000 → форма входа → cookie → прокси к Streamlit.
 """
 import base64
+import logging
 import hmac
 import hashlib
 import os
@@ -12,6 +13,9 @@ from fastapi import FastAPI, Request, Response, Cookie, WebSocket, WebSocketDisc
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Пароль из env (тот же APP_PASSWORD или ADMIN_PASSWORD)
 APP_PASSWORD = (os.getenv("APP_PASSWORD") or os.getenv("ADMIN_PASSWORD") or "").strip()
@@ -205,8 +209,8 @@ async def streamlit_websocket(websocket: WebSocket):
                     while True:
                         msg = await backend.recv()
                         await (websocket.send_bytes(msg) if isinstance(msg, bytes) else websocket.send_text(msg))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.info("ws backend recv closed: %s", e)
             async def from_client():
                 try:
                     while True:
@@ -219,7 +223,8 @@ async def streamlit_websocket(websocket: WebSocket):
                     pass
             import asyncio
             await asyncio.gather(from_backend(), from_client())
-    except Exception:
+    except Exception as e:
+        logger.warning("ws proxy error (stream may not load): %s", e)
         try:
             await websocket.close()
         except Exception:
