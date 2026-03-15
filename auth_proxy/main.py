@@ -82,14 +82,23 @@ LOGIN_HTML = """
 """
 
 
-def set_auth_cookie(response: Response, token: str) -> None:
+def _is_secure_request(request: Request) -> bool:
+    """HTTPS за прокси (Railway и т.д.)."""
+    if os.getenv("AUTH_PROXY_SECURE", "").lower() in ("1", "true"):
+        return True
+    proto = request.headers.get("x-forwarded-proto", "").lower()
+    return proto == "https"
+
+
+def set_auth_cookie(response: Response, token: str, request: Request | None = None) -> None:
+    secure = _is_secure_request(request) if request else (os.getenv("AUTH_PROXY_SECURE", "false").lower() in ("1", "true"))
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         max_age=AUTH_DAYS * 24 * 3600,
         path="/",
         httponly=True,
-        secure=os.getenv("AUTH_PROXY_SECURE", "false").lower() in ("1", "true"),
+        secure=secure,
         samesite="lax",
     )
 
@@ -111,7 +120,7 @@ async def login_post(request: Request):
         return HTMLResponse(LOGIN_HTML.replace("{{ error }}", "Неверный пароль"))
     token = make_token()
     response = RedirectResponse(url="/", status_code=302)
-    set_auth_cookie(response, token)
+    set_auth_cookie(response, token, request)
     return response
 
 
@@ -160,10 +169,24 @@ async def proxy_request(request: Request, path: str) -> Response:
         return Response(content=f"Proxy error: {e}", status_code=502)
 
 
+def _get_cookie_from_scope(scope: dict) -> str | None:
+    """Читаем cookie из заголовков (для WebSocket Cookie() иногда не подставляется)."""
+    headers = scope.get("headers") or []
+    for k, v in headers:
+        if k.lower() == b"cookie":
+            cookie_str = v.decode("latin-1")
+            for part in cookie_str.split(";"):
+                part = part.strip()
+                if part.startswith(COOKIE_NAME + "="):
+                    return part.split("=", 1)[1].strip()
+    return None
+
+
 @app.websocket("/_stcore/stream")
 async def streamlit_websocket(websocket: WebSocket, session: str | None = Cookie(None, alias=COOKIE_NAME)):
-    if APP_PASSWORD and (not session or not check_token(session)):
-        await websocket.close(code=4001)
+    token = session or _get_cookie_from_scope(websocket.scope)
+    if APP_PASSWORD and (not token or not check_token(token)):
+        # Не вызываем accept() — соединение отклоняется (403)
         return
     await websocket.accept()
     q = str(websocket.scope.get("query_string", "") or "")
