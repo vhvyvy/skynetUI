@@ -81,6 +81,15 @@ def _is_secure(request: Request) -> bool:
     return (request.headers.get("x-forwarded-proto") or "").lower() == "https"
 
 
+def _base_url(request: Request) -> str:
+    """Канонический URL без порта — чтобы скопированная ссылка открывалась (Railway: не тащить :8080)."""
+    scheme = (request.headers.get("x-forwarded-proto") or "https").strip().lower()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(":")[0].strip()
+    if not host:
+        return ""
+    return f"{scheme}://{host}"
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(error: str = ""):
     if not APP_PASSWORD:
@@ -103,7 +112,8 @@ async def login_post(request: Request):
     if pwd != APP_PASSWORD:
         return HTMLResponse(LOGIN_HTML.replace("{{ error }}", "Неверный пароль"))
     token = _make_token()
-    resp = RedirectResponse(url="/", status_code=302)
+    base = _base_url(request)
+    resp = RedirectResponse(url=f"{base}/" if base else "/", status_code=302)
     resp.set_cookie(
         key=COOKIE_NAME,
         value=token,
@@ -117,8 +127,9 @@ async def login_post(request: Request):
 
 
 @app.get("/logout")
-async def logout():
-    resp = RedirectResponse(url="/login", status_code=302)
+async def logout(request: Request):
+    base = _base_url(request)
+    resp = RedirectResponse(url=f"{base}/login" if base else "/login", status_code=302)
     resp.delete_cookie(COOKIE_NAME, path="/")
     return resp
 
