@@ -103,10 +103,13 @@ if _ADMIN_PASSWORD:
         with col1:
             if st.button("Войти", type="primary", key="auth_btn"):
                 if (pwd or "") == _ADMIN_PASSWORD:
-                    if _cookies is not None:
-                        token = _make_auth_token()
-                        _cookies["auth"] = token
-                        _cookies.save()
+                    if _cookies is not None and _cookies.ready():
+                        try:
+                            token = _make_auth_token()
+                            _cookies["auth"] = token
+                            _cookies.save()
+                        except Exception:
+                            pass
                     st.session_state["auth_ok"] = True
                     st.rerun()
                 else:
@@ -201,7 +204,7 @@ if _ADMIN_PASSWORD:
         if "auth_ok" in st.session_state:
             del st.session_state["auth_ok"]
         _c = st.session_state.get("auth_cookies")
-        if _c is not None:
+        if _c is not None and _c.ready():
             try:
                 _c["auth"] = ""
                 _c.save()
