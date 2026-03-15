@@ -84,14 +84,20 @@ def _is_secure(request: Request) -> bool:
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(error: str = ""):
     if not APP_PASSWORD:
-        return RedirectResponse(url="/", status_code=302)
+        return HTMLResponse(
+            "<p style='font-family:sans-serif;padding:2rem;'>Админ: задай <code>APP_PASSWORD</code> в переменных окружения (Railway Variables), затем обнови страницу.</p>",
+            status_code=503,
+        )
     return HTMLResponse(LOGIN_HTML.replace("{{ error }}", error))
 
 
 @app.post("/login")
 async def login_post(request: Request):
     if not APP_PASSWORD:
-        return RedirectResponse(url="/", status_code=302)
+        return HTMLResponse(
+            "<p style='font-family:sans-serif;padding:2rem;'>Задай <code>APP_PASSWORD</code> в Variables.</p>",
+            status_code=503,
+        )
     form = await request.form()
     pwd = (form.get("password") or "").strip()
     if pwd != APP_PASSWORD:
@@ -121,7 +127,8 @@ async def logout():
 async def auth_verify(session: str | None = Cookie(None, alias=COOKIE_NAME)):
     """nginx auth_request: 200 = пустить, 401 = редирект на /login."""
     if not APP_PASSWORD:
-        return JSONResponse(content={"ok": True})
+        # Без пароля в env никого не пускаем — иначе сайт открыт всем
+        return JSONResponse(status_code=401, content={"error": "APP_PASSWORD not set"})
     if session and _check_token(session):
         return JSONResponse(content={"ok": True})
     return JSONResponse(status_code=401, content={"error": "unauthorized"})
