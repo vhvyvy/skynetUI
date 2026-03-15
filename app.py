@@ -202,9 +202,9 @@ def _render_tabs():
         else {}
     )
     model_rev = {str(k).strip() if k is not None else "—": v for k, v in model_rev.items()}
-    plans = get_plans(sy, sm)
-    use_p = st.session_state.get("use_plans", True) and bool(plans)
-    plan_m = compute_plan_metrics(model_rev, plans) if use_p and plans else None
+    model_plans = get_plans(sy, sm)
+    use_p = st.session_state.get("use_plans", True) and bool(model_plans)
+    plan_m = compute_plan_metrics(model_rev, model_plans) if use_p and model_plans else None
     met = calculate_metrics(
         tx, ex,
         chatter_percent=st.session_state.chatter_percent,
