@@ -60,6 +60,7 @@ def render(transactions_df, expenses_df, metrics, selected_year, selected_month)
     if st.button("💾 Сохранить планы"):
         for model, val in new_plans.items():
             save_plan(selected_year, selected_month, model, val)
+        st.cache_data.clear()  # обновить get_plans при следующем открытии
         st.toast("Планы сохранены", icon="✅")
         st.rerun()
 

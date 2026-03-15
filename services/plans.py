@@ -18,8 +18,9 @@ PLAN_TIERS = [
 DEFAULT_CHATTER_PCT = 20  # при <50% плана
 
 
+@st.cache_data(ttl=300)
 def get_plans(year, month):
-    """Возвращает dict {model: plan_amount} для месяца."""
+    """Возвращает dict {model: plan_amount} для месяца. Кэш 5 мин."""
     try:
         conn = get_connection()
         cur = conn.cursor()

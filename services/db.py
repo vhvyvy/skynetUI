@@ -1,4 +1,5 @@
 import calendar
+import json
 import os
 from urllib.parse import urlparse
 import streamlit as st
@@ -247,3 +248,111 @@ def get_all_available_months():
         (int(pd.Timestamp(val).year), int(pd.Timestamp(val).month))
         for val in df["month_start"]
     ]
+
+
+# =====================================================
+# Настройки приложения (сохранение между сессиями)
+# =====================================================
+
+@st.cache_data(ttl=120)
+def get_app_settings():
+    """Возвращает dict {key: value} из таблицы app_settings. Пустой dict при ошибке. Кэш 2 мин — сброс при сохранении настроек."""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT key, value FROM app_settings")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {str(r[0]): r[1] for r in rows} if rows else {}
+    except Exception:
+        return {}
+
+
+def set_app_settings(settings_dict):
+    """Сохраняет настройки в БД (key → value). values приводятся к str."""
+    if not settings_dict:
+        return
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+        for k, v in settings_dict.items():
+            cur.execute(
+                "INSERT INTO app_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                (str(k), str(v)),
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+
+# =====================================================
+# Маппинг чаттер ↔ Onlymonster ID (для KPI)
+# =====================================================
+
+def get_chatter_onlymonster_mapping():
+    """Возвращает dict {onlymonster_id: [display_name, ...]} из БД."""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT onlymonster_id, display_names FROM chatter_onlymonster_mapping")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        out = {}
+        for onlymonster_id, display_names in rows or []:
+            try:
+                names = json.loads(display_names) if isinstance(display_names, str) and display_names.strip().startswith("[") else [display_names]
+            except Exception:
+                names = [display_names] if display_names else []
+            out[str(onlymonster_id)] = names
+        return out
+    except Exception:
+        return {}
+
+
+def save_chatter_onlymonster_mapping(onlymonster_id, display_names):
+    """display_names: список строк или одна строка. Сохраняет в БД."""
+    if not onlymonster_id or not str(onlymonster_id).strip():
+        return
+    names = display_names if isinstance(display_names, list) else [str(display_names).strip()] if display_names else []
+    names = [n for n in names if n]
+    if not names:
+        return
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS chatter_onlymonster_mapping (onlymonster_id TEXT PRIMARY KEY, display_names TEXT NOT NULL)"
+        )
+        conn.commit()
+        cur.execute(
+            "INSERT INTO chatter_onlymonster_mapping (onlymonster_id, display_names) VALUES (%s, %s) ON CONFLICT (onlymonster_id) DO UPDATE SET display_names = EXCLUDED.display_names",
+            (str(onlymonster_id).strip(), json.dumps(names, ensure_ascii=False)),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+
+def delete_chatter_onlymonster_mapping(onlymonster_id):
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM chatter_onlymonster_mapping WHERE onlymonster_id = %s", (str(onlymonster_id),))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        pass

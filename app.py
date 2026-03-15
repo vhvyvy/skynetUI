@@ -25,7 +25,7 @@ import tabs.events as events_tab
 import tabs.settings as settings
 
 # --- СЕРВИСЫ ---
-from services.db import load_transactions, load_expenses, get_all_available_months
+from services.db import load_transactions, load_expenses, get_all_available_months, get_app_settings
 from services.metrics import calculate_metrics
 from services.plans import get_plans, compute_plan_metrics
 from components.styling import inject_premium_css
@@ -58,6 +58,18 @@ defaults = {
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+# Загружаем сохранённые настройки из БД (перезаписывают дефолты)
+_saved = get_app_settings()
+if _saved:
+    for k, v in _saved.items():
+        try:
+            if k in ("model_percent", "chatter_percent", "admin_percent", "withdraw_percent"):
+                st.session_state[k] = int(v)
+            elif k in ("use_withdraw", "use_retention", "use_plans"):
+                st.session_state[k] = str(v).lower() in ("1", "true", "yes", "on")
+        except (ValueError, TypeError):
+            pass
 
 # ==================================================
 # ВЫБОР МЕСЯЦА (все месяцы с данными из transactions и expenses)
@@ -120,16 +132,26 @@ last_day = calendar.monthrange(selected_year, selected_month)[1]
 end_date = datetime(selected_year, selected_month, last_day)
 
 # ==================================================
-# ЗАГРУЗКА ДАННЫХ
+# ЗАГРУЗКА ДАННЫХ (кэш в session_state — без повторных запросов при смене ползунков/табов)
 # ==================================================
 
-try:
-    with st.spinner("Загрузка данных…"):
-        transactions_df = load_transactions(start_date, end_date)
-        expenses_df = load_expenses(start_date, end_date)
-except Exception as e:
-    st.error(f"Ошибка загрузки данных: {e}")
-    st.stop()
+_cached_month = st.session_state.get("_data_month")
+_use_cache = _cached_month == (selected_year, selected_month) and "_transactions_df" in st.session_state
+
+if _use_cache:
+    transactions_df = st.session_state["_transactions_df"]
+    expenses_df = st.session_state["_expenses_df"]
+else:
+    try:
+        with st.spinner("Загрузка данных…"):
+            transactions_df = load_transactions(start_date, end_date)
+            expenses_df = load_expenses(start_date, end_date)
+        st.session_state["_data_month"] = (selected_year, selected_month)
+        st.session_state["_transactions_df"] = transactions_df
+        st.session_state["_expenses_df"] = expenses_df
+    except Exception as e:
+        st.error(f"Ошибка загрузки данных: {e}")
+        st.stop()
 
 # Планы по моделям (влияют на % чаттера)
 model_revenues = (
@@ -158,44 +180,69 @@ metrics = calculate_metrics(
     plan_metrics=plan_metrics,
 )
 
-# ==================================================
-# ТАБЫ
-# ==================================================
+# Сохраняем в session_state для фрагмента (год/месяц и month_options для AI)
+st.session_state["_selected_year"] = selected_year
+st.session_state["_selected_month"] = selected_month
+st.session_state["_month_options"] = month_options
 
-tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
 
-with tabs_list[0]:
-    overview.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
+def _render_tabs():
+    """Рендер табов во фрагменте: при действиях внутри табов перезапускается только он — без загрузки данных и сайдбара."""
+    tx = st.session_state.get("_transactions_df")
+    ex = st.session_state.get("_expenses_df")
+    sy = st.session_state.get("_selected_year")
+    sm = st.session_state.get("_selected_month")
+    mo = st.session_state.get("_month_options", [])
+    if tx is None or ex is None:
+        st.info("Выберите месяц в сайдбаре.")
+        return
+    model_rev = (
+        tx.groupby("model", dropna=False)["amount"].sum().to_dict()
+        if tx is not None and not tx.empty and "model" in tx.columns
+        else {}
+    )
+    model_rev = {str(k).strip() if k is not None else "—": v for k, v in model_rev.items()}
+    plans = get_plans(sy, sm)
+    use_p = st.session_state.get("use_plans", True) and bool(plans)
+    plan_m = compute_plan_metrics(model_rev, plans) if use_p and plans else None
+    met = calculate_metrics(
+        tx, ex,
+        chatter_percent=st.session_state.chatter_percent,
+        admin_percent=st.session_state.admin_percent,
+        model_percent=st.session_state.model_percent,
+        withdraw_percent=st.session_state.withdraw_percent,
+        use_withdraw=st.session_state.use_withdraw,
+        use_retention=st.session_state.use_retention,
+        plan_metrics=plan_m,
+    )
+    tabs_list = st.tabs(["Обзор", "Финансы", "Модели", "Чаттеры", "KPI", "Админы", "Планы", "Лаборатория", "Структура", "События", "AI", "Настройки"])
+    with tabs_list[0]:
+        overview.render(tx, ex, met, sy, sm)
+    with tabs_list[1]:
+        finance.render(tx, ex, met)
+    with tabs_list[2]:
+        models_detail.render(tx, ex, met, plan_m, sy, sm)
+    with tabs_list[3]:
+        chatters.render(tx, ex, met, plan_m, sy, sm)
+    with tabs_list[4]:
+        kpi_chatters.render(tx, ex, met, plan_m, sy, sm)
+    with tabs_list[5]:
+        admin_kpi.render(tx, met, plan_m, sy, sm)
+    with tabs_list[6]:
+        plans.render(tx, ex, met, sy, sm)
+    with tabs_list[7]:
+        lab.render(tx, ex, met, sy, sm)
+    with tabs_list[8]:
+        structure.render(tx, ex, met, plan_m)
+    with tabs_list[9]:
+        events_tab.render(tx, ex, met)
+    with tabs_list[10]:
+        ai.render(tx, ex, met, plan_m, sy, sm, mo)
+    with tabs_list[11]:
+        settings.render(tx, ex, met)
 
-with tabs_list[1]:
-    finance.render(transactions_df, expenses_df, metrics)
 
-with tabs_list[2]:
-    models_detail.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
-
-with tabs_list[3]:
-    chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
-
-with tabs_list[4]:
-    kpi_chatters.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month)
-
-with tabs_list[5]:
-    admin_kpi.render(transactions_df, metrics, plan_metrics, selected_year, selected_month)
-
-with tabs_list[6]:
-    plans.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
-
-with tabs_list[7]:
-    lab.render(transactions_df, expenses_df, metrics, selected_year, selected_month)
-
-with tabs_list[8]:
-    structure.render(transactions_df, expenses_df, metrics, plan_metrics)
-
-with tabs_list[9]:
-    events_tab.render(transactions_df, expenses_df, metrics)
-
-with tabs_list[10]:
-    ai.render(transactions_df, expenses_df, metrics, plan_metrics, selected_year, selected_month, month_options)
-
-with tabs_list[11]:
-    settings.render(transactions_df, expenses_df, metrics)
+# Фрагмент: при действиях внутри табов перезапускается только _render_tabs, без загрузки данных (Streamlit 1.33+)
+if getattr(st, "fragment", None):
+    _render_tabs = st.fragment(_render_tabs)
+_render_tabs()
