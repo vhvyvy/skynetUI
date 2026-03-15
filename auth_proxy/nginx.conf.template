@@ -1,4 +1,13 @@
 # Подставляется PORT при старте: envsubst '$PORT' < this file > nginx.conf
+map $host $host_no_port {
+    ~^([^:]+) $1;
+    default $host;
+}
+map $http_x_forwarded_proto $redirect_scheme {
+    default https;
+    ~https https;
+    ~http http;
+}
 server {
     listen ${PORT};
     server_name _;
@@ -8,18 +17,18 @@ server {
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header Cookie $http_cookie;
-        proxy_set_header Host $host;
+        proxy_set_header Host $host_no_port;
     }
     location = /login {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
+        proxy_set_header Host $host_no_port;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $redirect_scheme;
     }
     location = /logout {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $host_no_port;
+        proxy_set_header X-Forwarded-Proto $redirect_scheme;
     }
     location / {
         auth_request /auth/verify;
@@ -29,12 +38,12 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 86400;
-        proxy_set_header Host $host;
+        proxy_set_header Host $host_no_port;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $redirect_scheme;
         proxy_set_header X-Auth-Via-Nginx "1";
     }
     location @redirect_login {
-        return 302 /login;
+        return 302 $redirect_scheme://$host_no_port/login;
     }
 }
