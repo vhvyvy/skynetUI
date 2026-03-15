@@ -254,9 +254,8 @@ def get_all_available_months():
 # Настройки приложения (сохранение между сессиями)
 # =====================================================
 
-@st.cache_data(ttl=120)
-def get_app_settings():
-    """Возвращает dict {key: value} из таблицы app_settings. Пустой dict при ошибке. Кэш 2 мин — сброс при сохранении настроек."""
+def _get_app_settings_impl():
+    """Возвращает dict {key: value} из таблицы app_settings. Пустой dict при ошибке."""
     try:
         conn = get_connection()
         cur = conn.cursor()
@@ -267,6 +266,11 @@ def get_app_settings():
         return {str(r[0]): r[1] for r in rows} if rows else {}
     except Exception:
         return {}
+
+
+# Кэш 2 мин (сброс при сохранении настроек). Опционально — для старых Streamlit без cache_data
+_cache_data = getattr(st, "cache_data", None)
+get_app_settings = _cache_data(ttl=120)(_get_app_settings_impl) if _cache_data else _get_app_settings_impl
 
 
 def set_app_settings(settings_dict):
