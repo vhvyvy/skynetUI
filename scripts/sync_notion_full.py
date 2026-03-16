@@ -198,7 +198,11 @@ def sync_expenses(config):
     # Env переопределяет config — для разделения личный/клиент (разные секреты)
     # При NOTION_SYNC_CLIENT=1 НЕ используем config — только env (защита от пересечения)
     is_client = os.getenv("NOTION_SYNC_CLIENT", "").strip().lower() in ("1", "true", "yes")
-    ids_env = os.getenv("NOTION_EXPENSES_DATABASE_IDS") or os.getenv("NOTION_EXPENSES_DATABASE_ID")
+    ids_env = (
+        os.getenv("NOTION_EXPENSES_DATABASE_IDS_CLIENT")
+        or os.getenv("NOTION_EXPENSES_DATABASE_IDS")
+        or os.getenv("NOTION_EXPENSES_DATABASE_ID")
+    )
     if ids_env:
         db_ids = [x.strip() for x in str(ids_env).split(",") if x.strip()]
     elif not is_client:
@@ -401,7 +405,11 @@ def sync_transactions(config, truncate=False):
     # Env переопределяет config — для разделения личный/клиент (разные секреты)
     # При NOTION_SYNC_CLIENT=1 НЕ используем config — только env (защита от пересечения)
     is_client = os.getenv("NOTION_SYNC_CLIENT", "").strip().lower() in ("1", "true", "yes")
-    main_id = os.getenv("NOTION_TRANSACTIONS_DATABASE_ID") or os.getenv("DATABASE_ID")
+    main_id = (
+        os.getenv("NOTION_TRANSACTIONS_DATABASE_ID_CLIENT")
+        or os.getenv("NOTION_TRANSACTIONS_DATABASE_ID")
+        or os.getenv("DATABASE_ID")
+    )
     if not main_id and not is_client:
         main_id = tcfg.get("database_id")
 
