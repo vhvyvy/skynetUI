@@ -28,4 +28,7 @@ jobs:
           PG_DB: ${{ secrets.PG_DB }}
           PG_USER: ${{ secrets.PG_USER }}
           PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          # Для личной версии используй NOTION_TOKEN, для клиентской — NOTION_TOKEN_CLIENT.
+          # Скрипт сам возьмёт токен в порядке: NOTION_TOKEN → NOTION_TOKEN_CLIENT → NOTION_API_KEY.
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_TOKEN_CLIENT: ${{ secrets.NOTION_TOKEN_CLIENT }}
