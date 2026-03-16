@@ -27,7 +27,14 @@ load_dotenv(os.path.join(root, ".env"))
 load_dotenv(os.path.join(root, "skynet", ".env"))
 load_dotenv(os.path.join(root, "services", ".env"))
 
-NOTION_TOKEN = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY")
+# Для клиентской версии можно передавать NOTION_TOKEN_CLIENT, если workflow
+# использует другой секрет. Скрипт берёт токен в таком порядке:
+# NOTION_TOKEN → NOTION_TOKEN_CLIENT → NOTION_API_KEY.
+NOTION_TOKEN = (
+    os.getenv("NOTION_TOKEN")
+    or os.getenv("NOTION_TOKEN_CLIENT")
+    or os.getenv("NOTION_API_KEY")
+)
 PG_HOST = os.getenv("PG_HOST") or os.getenv("DB_HOST") or "localhost"
 PG_PORT = int(os.getenv("PG_PORT") or os.getenv("DB_PORT") or "5432")
 PG_DB = os.getenv("PG_DB") or os.getenv("DB_NAME") or "skynet"
