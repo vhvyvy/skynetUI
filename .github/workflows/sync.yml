@@ -23,12 +23,17 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python scripts/sync_notion_full.py ${{ github.event.inputs.truncate_transactions == 'true' && '--truncate-transactions' || '' }}
         env:
+          # Для клиентской версии можно задать отдельные секреты PG_*_CLIENT и NOTION_TOKEN_CLIENT.
+          # Скрипт берёт значения в порядке PG_*_CLIENT → PG_* → DB_*.
           PG_HOST: ${{ secrets.PG_HOST }}
+          PG_HOST_CLIENT: ${{ secrets.PG_HOST_CLIENT }}
           PG_PORT: ${{ secrets.PG_PORT }}
+          PG_PORT_CLIENT: ${{ secrets.PG_PORT_CLIENT }}
           PG_DB: ${{ secrets.PG_DB }}
+          PG_DB_CLIENT: ${{ secrets.PG_DB_CLIENT }}
           PG_USER: ${{ secrets.PG_USER }}
+          PG_USER_CLIENT: ${{ secrets.PG_USER_CLIENT }}
           PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
-          # Для личной версии используй NOTION_TOKEN, для клиентской — NOTION_TOKEN_CLIENT.
-          # Скрипт сам возьмёт токен в порядке: NOTION_TOKEN → NOTION_TOKEN_CLIENT → NOTION_API_KEY.
+          PG_PASSWORD_CLIENT: ${{ secrets.PG_PASSWORD_CLIENT }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_TOKEN_CLIENT: ${{ secrets.NOTION_TOKEN_CLIENT }}

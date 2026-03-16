@@ -27,19 +27,46 @@ load_dotenv(os.path.join(root, ".env"))
 load_dotenv(os.path.join(root, "skynet", ".env"))
 load_dotenv(os.path.join(root, "services", ".env"))
 
-# Для клиентской версии можно передавать NOTION_TOKEN_CLIENT, если workflow
-# использует другой секрет. Скрипт берёт токен в таком порядке:
-# NOTION_TOKEN → NOTION_TOKEN_CLIENT → NOTION_API_KEY.
+# Для клиентской версии можно передавать переменные с суффиксом _CLIENT.
+# Порядок приоритета:
+#  - токен: NOTION_TOKEN → NOTION_TOKEN_CLIENT → NOTION_API_KEY
+#  - БД: PG_*_CLIENT → PG_* → DB_* → fallback
 NOTION_TOKEN = (
     os.getenv("NOTION_TOKEN")
     or os.getenv("NOTION_TOKEN_CLIENT")
     or os.getenv("NOTION_API_KEY")
 )
-PG_HOST = os.getenv("PG_HOST") or os.getenv("DB_HOST") or "localhost"
-PG_PORT = int(os.getenv("PG_PORT") or os.getenv("DB_PORT") or "5432")
-PG_DB = os.getenv("PG_DB") or os.getenv("DB_NAME") or "skynet"
-PG_USER = os.getenv("PG_USER") or os.getenv("DB_USER") or "postgres"
-PG_PASSWORD = os.getenv("PG_PASSWORD") or os.getenv("DB_PASSWORD") or os.getenv("DB_PASS") or ""
+PG_HOST = (
+    os.getenv("PG_HOST_CLIENT")
+    or os.getenv("PG_HOST")
+    or os.getenv("DB_HOST")
+    or "localhost"
+)
+PG_PORT = int(
+    os.getenv("PG_PORT_CLIENT")
+    or os.getenv("PG_PORT")
+    or os.getenv("DB_PORT")
+    or "5432"
+)
+PG_DB = (
+    os.getenv("PG_DB_CLIENT")
+    or os.getenv("PG_DB")
+    or os.getenv("DB_NAME")
+    or "skynet"
+)
+PG_USER = (
+    os.getenv("PG_USER_CLIENT")
+    or os.getenv("PG_USER")
+    or os.getenv("DB_USER")
+    or "postgres"
+)
+PG_PASSWORD = (
+    os.getenv("PG_PASSWORD_CLIENT")
+    or os.getenv("PG_PASSWORD")
+    or os.getenv("DB_PASSWORD")
+    or os.getenv("DB_PASS")
+    or ""
+)
 
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
