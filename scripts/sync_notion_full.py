@@ -323,19 +323,68 @@ def parse_transaction_row(row, shift_type="relation"):
     elif ct == "relation" and (cp or {}).get("relation"):
         chatter = get_page_title(cp["relation"][0]["id"], chatter_cache)
 
-    shift_val = None
-    if shift_type == "relation":
-        for k, v in props.items():
-            if v.get("type") == "relation" and k.strip().lower() in ("смена", "shift"):
-                if v.get("relation"):
-                    shift_val = v["relation"][0]["id"]
-                break
-    else:
-        sp = props.get("Смена") or props.get("Shift")
-        if sp and sp.get("type") == "select" and sp.get("select"):
-            shift_val = sp["select"].get("name")
+    def _extract_shift_from_prop(prop):
+        if not isinstance(prop, dict):
+            return None, None
+        ptype = prop.get("type")
+        if ptype == "relation" and prop.get("relation"):
+            rid = prop["relation"][0].get("id")
+            if rid:
+                return rid, "relation"
+        if ptype == "select" and prop.get("select"):
+            name = (prop["select"].get("name") or "").strip()
+            if name:
+                return name, "select"
+        if ptype == "multi_select" and prop.get("multi_select"):
+            name = (prop["multi_select"][0].get("name") or "").strip()
+            if name:
+                return name, "multi_select"
+        if ptype == "rich_text" and prop.get("rich_text"):
+            txt = (prop["rich_text"][0].get("plain_text") or "").strip()
+            if txt:
+                return txt, "rich_text"
+        if ptype == "title" and prop.get("title"):
+            txt = (prop["title"][0].get("plain_text") or "").strip()
+            if txt:
+                return txt, "title"
+        if ptype == "people" and prop.get("people"):
+            name = (prop["people"][0].get("name") or "").strip()
+            if name:
+                return name, "people"
+        return None, None
 
-    return date_val, model_name, chatter, amount, shift_val
+    # Храним совместимость: сначала используем ожидаемый тип, затем авто-fallback.
+    shift_val, shift_kind = None, None
+    preferred = "relation" if shift_type == "relation" else "select"
+    fallback = "select" if preferred == "relation" else "relation"
+    key_hints = ("смен", "shift", "admin", "админ")
+
+    # 1) По прямым именам полей
+    named_props = [props.get("Смена"), props.get("Shift"), props.get("Admin"), props.get("Админ")]
+    for target_kind in (preferred, fallback):
+        for p in named_props:
+            val, kind = _extract_shift_from_prop(p)
+            if val and kind and ((target_kind == "relation" and kind == "relation") or (target_kind != "relation" and kind != "relation")):
+                shift_val, shift_kind = val, kind
+                break
+        if shift_val:
+            break
+
+    # 2) По похожим названиям любых свойств
+    if not shift_val:
+        for target_kind in (preferred, fallback):
+            for key, prop in props.items():
+                lname = str(key).strip().lower()
+                if not any(h in lname for h in key_hints):
+                    continue
+                val, kind = _extract_shift_from_prop(prop)
+                if val and kind and ((target_kind == "relation" and kind == "relation") or (target_kind != "relation" and kind != "relation")):
+                    shift_val, shift_kind = val, kind
+                    break
+            if shift_val:
+                break
+
+    return date_val, model_name, chatter, amount, shift_val, shift_kind
 
 
 def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
@@ -368,25 +417,32 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
 
         for row in rows:
             notion_id = row.get("id")
-            date_val, model, chatter, amount, shift_val = parse_transaction_row(row, shift_type)
+            date_val, model, chatter, amount, shift_val, shift_kind = parse_transaction_row(row, shift_type)
             if not model:
                 skipped += 1
                 continue
-            if shift_val and shift_type == "relation":
+            if shift_val and shift_kind == "relation":
                 ensure_shift_exists(shift_val, cur, conn)
+
+            shift_id = shift_val
+            shift_name = None
+            if shift_val and shift_kind == "relation":
+                shift_name = shift_cache.get(shift_val)
+            elif shift_val:
+                shift_name = shift_val
 
             if use_upsert and notion_id:
                 cur.execute("""
-                    INSERT INTO transactions (notion_id, date, model, chatter, amount, shift_id, synced_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    INSERT INTO transactions (notion_id, date, model, chatter, amount, shift_id, shift_name, synced_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                     ON CONFLICT (notion_id)
                     DO UPDATE SET date=EXCLUDED.date, model=EXCLUDED.model, chatter=EXCLUDED.chatter,
-                        amount=EXCLUDED.amount, shift_id=EXCLUDED.shift_id, synced_at=NOW()
-                """, (notion_id, date_val, model, chatter or "", amount, shift_val))
+                        amount=EXCLUDED.amount, shift_id=EXCLUDED.shift_id, shift_name=EXCLUDED.shift_name, synced_at=NOW()
+                """, (notion_id, date_val, model, chatter or "", amount, shift_id, shift_name))
             else:
                 cur.execute(
-                    """INSERT INTO transactions (date, model, chatter, amount, shift_id) VALUES (%s, %s, %s, %s, %s)""",
-                    (date_val, model, chatter or "", amount, shift_val),
+                    """INSERT INTO transactions (date, model, chatter, amount, shift_id, shift_name) VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (date_val, model, chatter or "", amount, shift_id, shift_name),
                 )
             inserted += 1
             if inserted % 100 == 0:
