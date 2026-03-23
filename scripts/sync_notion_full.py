@@ -69,7 +69,16 @@ PG_PASSWORD = (
     or ""
 )
 
-print(f"[db-config] host={PG_HOST}  port={PG_PORT}  db={PG_DB}  user={PG_USER}  pass={'*'*len(PG_PASSWORD) if PG_PASSWORD else '(empty)'}")
+_src = lambda *keys: next((k for k in keys if os.getenv(k)), "default")
+print(f"[db-diag] host_source={_src('PG_HOST_CLIENT','PG_HOST','DB_HOST')}"
+      f"  host_has_neon={'neon' in (PG_HOST or '')}"
+      f"  host_has_pooler={'pooler' in (PG_HOST or '')}"
+      f"  host_len={len(PG_HOST or '')}"
+      f"  port={PG_PORT}"
+      f"  db_source={_src('PG_DB_CLIENT','PG_DB','DB_NAME')}"
+      f"  user_source={_src('PG_USER_CLIENT','PG_USER','DB_USER')}"
+      f"  pass_len={len(PG_PASSWORD or '')}"
+      f"  sslmode_env={os.getenv('PG_SSLMODE_CLIENT') or os.getenv('PG_SSLMODE') or '(auto)'}")
 
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
