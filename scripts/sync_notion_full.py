@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import time
 import requests
 import psycopg2
 from dotenv import load_dotenv
@@ -87,13 +88,31 @@ def load_config():
     return {}
 
 
-def get_connection():
+def get_connection(retries=3):
+    sslmode = (
+        os.getenv("PG_SSLMODE_CLIENT")
+        or os.getenv("PG_SSLMODE")
+        or os.getenv("DB_SSLMODE")
+    )
     kwargs = dict(
         host=PG_HOST, port=PG_PORT, dbname=PG_DB, user=PG_USER, password=PG_PASSWORD,
     )
-    if PG_HOST and (".neon.tech" in PG_HOST or "proxy.rlwy.net" in PG_HOST):
+    if sslmode:
+        kwargs["sslmode"] = sslmode
+    elif PG_HOST and (".neon.tech" in PG_HOST or "proxy.rlwy.net" in PG_HOST):
         kwargs["sslmode"] = "require"
-    return psycopg2.connect(**kwargs)
+
+    for attempt in range(1, retries + 1):
+        try:
+            return psycopg2.connect(**kwargs)
+        except psycopg2.OperationalError as e:
+            if attempt < retries:
+                wait = attempt * 3
+                print(f"  DB connect attempt {attempt}/{retries} failed: {e}")
+                print(f"  Retrying in {wait}s (Neon compute may be waking up)...")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def _resolve_page_to_database_id(page_id):
