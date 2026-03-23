@@ -436,6 +436,9 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
             first_props = rows[0].get("properties", {})
             prop_info = {k: v.get("type", "?") for k, v in first_props.items()}
             print(f"  [debug] Поля первой строки: {prop_info}")
+            for sname in ("Смена", "Shift", "Admin", "Админ"):
+                if sname in first_props:
+                    print(f"  [debug] Поле '{sname}' RAW: {first_props[sname]}")
 
         for row in rows:
             notion_id = row.get("id")
