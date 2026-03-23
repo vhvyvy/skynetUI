@@ -69,6 +69,8 @@ PG_PASSWORD = (
     or ""
 )
 
+print(f"[db-config] host={PG_HOST}  port={PG_PORT}  db={PG_DB}  user={PG_USER}  pass={'*'*len(PG_PASSWORD) if PG_PASSWORD else '(empty)'}")
+
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
     "Notion-Version": "2022-06-28",
