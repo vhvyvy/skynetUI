@@ -69,17 +69,6 @@ PG_PASSWORD = (
     or ""
 )
 
-_src = lambda *keys: next((k for k in keys if os.getenv(k)), "default")
-print(f"[db-diag] host_source={_src('PG_HOST_CLIENT','PG_HOST','DB_HOST')}"
-      f"  host_has_neon={'neon' in (PG_HOST or '')}"
-      f"  host_has_pooler={'pooler' in (PG_HOST or '')}"
-      f"  host_len={len(PG_HOST or '')}"
-      f"  port={PG_PORT}"
-      f"  db_source={_src('PG_DB_CLIENT','PG_DB','DB_NAME')}"
-      f"  user_source={_src('PG_USER_CLIENT','PG_USER','DB_USER')}"
-      f"  pass_len={len(PG_PASSWORD or '')}"
-      f"  sslmode_env={os.getenv('PG_SSLMODE_CLIENT') or os.getenv('PG_SSLMODE') or '(auto)'}")
-
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
     "Notion-Version": "2022-06-28",
@@ -420,7 +409,7 @@ def parse_transaction_row(row, shift_type="relation"):
 def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
     """Синхронизирует одну базу транзакций. Возвращает (inserted, skipped)."""
     url = f"https://api.notion.com/v1/databases/{db_id}/query"
-    has_more, next_cursor, inserted, skipped = True, None, 0, 0
+    has_more, next_cursor, inserted, skipped, with_shift = True, None, 0, 0, 0
 
     while has_more:
         payload = {"start_cursor": next_cursor} if next_cursor else {}
@@ -474,13 +463,16 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
                     """INSERT INTO transactions (date, model, chatter, amount, shift_id, shift_name) VALUES (%s, %s, %s, %s, %s, %s)""",
                     (date_val, model, chatter or "", amount, shift_id, shift_name),
                 )
+            if shift_id:
+                with_shift += 1
             inserted += 1
             if inserted % 100 == 0:
-                print(f"  Transactions: {inserted}...")
+                print(f"  Transactions: {inserted} (shifts: {with_shift})...")
         conn.commit()
         has_more = data.get("has_more", False)
         next_cursor = data.get("next_cursor")
 
+    print(f"  DB {db_id[:8]}...: inserted={inserted}, with_shift={with_shift}, skipped={skipped}")
     return inserted, skipped
 
 
@@ -518,12 +510,27 @@ def sync_transactions(config, truncate=False):
     conn = get_connection()
     cur = conn.cursor()
 
+    # Добавляем колонки, если их нет (для обновления старых баз)
+    for col, col_type in [("notion_id", "TEXT"), ("shift_name", "TEXT")]:
+        try:
+            cur.execute(f"ALTER TABLE transactions ADD COLUMN {col} {col_type}")
+            conn.commit()
+            print(f"  Added column transactions.{col}")
+        except Exception:
+            conn.rollback()
+    # Уникальный индекс на notion_id (для ON CONFLICT)
+    try:
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_notion_id ON transactions (notion_id)")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
     if truncate:
         print("TRUNCATE transactions (очистка дубликатов)...")
         cur.execute("TRUNCATE TABLE transactions")
         conn.commit()
 
-    total_inserted, total_skipped = 0, 0
+    total_inserted, total_skipped, total_with_shift = 0, 0, 0
 
     for db_id, shift_type in sources:
         print(f"Transactions: база {db_id[:8]}... shift_type={shift_type}")
@@ -531,9 +538,17 @@ def sync_transactions(config, truncate=False):
         total_inserted += inc
         total_skipped += sk
 
+    # Проверяем сколько транзакций со сменами
+    try:
+        cur.execute("SELECT COUNT(*), COUNT(*) FILTER (WHERE COALESCE(NULLIF(TRIM(shift_id),''), NULLIF(TRIM(shift_name),'')) IS NOT NULL) FROM transactions")
+        total_rows, with_shift = cur.fetchone()
+        print(f"Transactions: всего в БД {total_rows}, со сменой {with_shift}, без смены {total_rows - with_shift}")
+    except Exception:
+        pass
+
     cur.close()
     conn.close()
-    print("Transactions: всего inserted", total_inserted, "skipped", total_skipped)
+    print("Transactions: inserted", total_inserted, "skipped", total_skipped)
 
 
 def main():
