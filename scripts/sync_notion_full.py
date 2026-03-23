@@ -433,6 +433,9 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
             print(f"  Notion вернул 0 строк. Проверь: 1) Интеграция добавлена в базу (Share→Invite) 2) ID базы верный")
         elif not next_cursor and rows:
             print(f"  Notion: получено {len(rows)} страниц (будут подгружаться дальше по курсору)")
+            first_props = rows[0].get("properties", {})
+            prop_info = {k: v.get("type", "?") for k, v in first_props.items()}
+            print(f"  [debug] Поля первой строки: {prop_info}")
 
         for row in rows:
             notion_id = row.get("id")
