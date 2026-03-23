@@ -99,7 +99,7 @@ def get_connection(retries=3):
     )
     if sslmode:
         kwargs["sslmode"] = sslmode
-    elif PG_HOST and (".neon.tech" in PG_HOST or "proxy.rlwy.net" in PG_HOST):
+    elif PG_HOST and PG_HOST not in ("localhost", "127.0.0.1", "::1"):
         kwargs["sslmode"] = "require"
 
     for attempt in range(1, retries + 1):
