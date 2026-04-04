@@ -84,6 +84,11 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
 
     # Не скрываем строки с user_id — иначе после sync через API данные не видны
 
+    # Строки из CSV/API/БД иногда дают object/string — nlargest и сортировки падают с TypeError
+    for _col in ("PPV Open Rate %", "APV", "Total Chats"):
+        if _col in kpi.columns:
+            kpi[_col] = pd.to_numeric(kpi[_col], errors="coerce")
+
     kpi["PPV Sold"] = kpi.apply(lambda r: round(r["Выручка"] / r["APV"], 2) if pd.notna(r["APV"]) and r["APV"] > 0 else None, axis=1)
     kpi["APC per chat"] = kpi.apply(lambda r: round(r["PPV Sold"] / r["Total Chats"], 2) if pd.notna(r["Total Chats"]) and r["Total Chats"] > 0 and pd.notna(r["PPV Sold"]) else None, axis=1)
     kpi["RPC"] = kpi.apply(lambda r: round(r["Выручка"] / r["Total Chats"], 2) if pd.notna(r["Total Chats"]) and r["Total Chats"] > 0 else None, axis=1)
@@ -96,6 +101,10 @@ def _build_kpi_df(transactions_df, metrics, plan_metrics, selected_year, selecte
     kpi["Monetization Depth"] = kpi.apply(lambda r: round((r["RPC"] or 0) / (r["APV"] or 1) * 100, 2) if pd.notna(r["RPC"]) and pd.notna(r["APV"]) and r["APV"] > 0 else None, axis=1)
     kpi["Productivity Index"] = kpi.apply(lambda r: round((r["PPV Sold"] or 0) / (r["Total Chats"] or 1) * (r["PPV Open Rate %"] or 0), 2) if pd.notna(r["Total Chats"]) and r["Total Chats"] > 0 else None, axis=1)
     kpi["Efficiency Ratio"] = kpi.apply(lambda r: round((r["RPC"] or 0) / (r["APV"] or 1) * (r["PPV Open Rate %"] or 0), 2) if pd.notna(r["RPC"]) and pd.notna(r["APV"]) and pd.notna(r["PPV Open Rate %"]) and r["APV"] > 0 else None, axis=1)
+
+    for _col in ("RPC", "Conversion Score"):
+        if _col in kpi.columns:
+            kpi[_col] = pd.to_numeric(kpi[_col], errors="coerce")
 
     # Скрыть ID без маппинга и строки с нулевой расчётной оплатой
     HIDDEN_IDS = {"9680", "18073", "71191", "73588", "79737", "80144", "@hornykabanchik"}
