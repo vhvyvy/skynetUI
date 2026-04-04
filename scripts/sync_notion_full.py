@@ -76,6 +76,26 @@ HEADERS = {
 }
 
 
+def _safe_json_response(resp):
+    """HTTP 200 + JSON-объект без object=error. Иначе None (пустое тело, HTML, 502, …)."""
+    if resp is None:
+        return None
+    try:
+        if not getattr(resp, "ok", False):
+            return None
+        text = (resp.text or "").strip()
+        if not text:
+            return None
+        data = json.loads(text)
+    except (ValueError, requests.exceptions.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("object") == "error" or data.get("code"):
+        return None
+    return data
+
+
 def load_config():
     for name in ("notion_sync.json", "notion_sync.example.json"):
         path = os.path.join(root, "config", name)
@@ -142,9 +162,15 @@ def fetch_notion_db(db_id):
         while True:
             payload = {"start_cursor": start_cursor} if start_cursor else {}
             resp = requests.post(url, headers=HEADERS, json=payload, timeout=30)
-            data = resp.json()
-            if data.get("object") == "error" or data.get("code"):
-                return None, data.get("message", "unknown")
+            try:
+                raw = resp.json()
+            except (ValueError, requests.exceptions.JSONDecodeError):
+                return None, f"non-JSON response (HTTP {resp.status_code})"
+            if not isinstance(raw, dict):
+                return None, "invalid response body"
+            if raw.get("object") == "error" or raw.get("code"):
+                return None, raw.get("message", "unknown")
+            data = raw
             results.extend(data.get("results", []))
             if not data.get("has_more"):
                 break
@@ -201,8 +227,13 @@ def resolve_relation(page_id, cache=None):
     if page_id in cache:
         return cache[page_id]
     url = f"https://api.notion.com/v1/pages/{page_id}"
-    resp = requests.get(url, headers=HEADERS, timeout=30)
-    data = resp.json()
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+    except requests.RequestException:
+        return None
+    data = _safe_json_response(resp)
+    if not data:
+        return None
     for p in data.get("properties", {}).values():
         if p.get("type") == "title" and p.get("title"):
             title = p["title"][0].get("plain_text", "").strip()
@@ -292,8 +323,13 @@ def get_page_title(page_id, cache):
     if page_id in cache:
         return cache[page_id]
     url = f"https://api.notion.com/v1/pages/{page_id}"
-    resp = requests.get(url, headers=HEADERS, timeout=30)
-    data = resp.json()
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=30)
+    except requests.RequestException:
+        return None
+    data = _safe_json_response(resp)
+    if not data:
+        return None
     for p in data.get("properties", {}).values():
         if p.get("type") == "title" and p.get("title"):
             t = p["title"][0].get("plain_text", "").strip()
@@ -414,7 +450,14 @@ def _sync_one_transaction_db(db_id, shift_type, cur, conn, use_upsert=True):
     while has_more:
         payload = {"start_cursor": next_cursor} if next_cursor else {}
         resp = requests.post(url, headers=HEADERS, json=payload, timeout=30)
-        data = resp.json()
+        try:
+            data = resp.json()
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            print(f"  Notion API error: ответ не JSON (HTTP {resp.status_code}), тело: {(resp.text or '')[:200]}")
+            break
+        if not isinstance(data, dict):
+            print("  Notion API error: неожиданный формат ответа")
+            break
 
         if data.get("object") == "error" or data.get("code"):
             msg = data.get("message", "")
